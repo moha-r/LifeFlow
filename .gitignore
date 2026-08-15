@@ -1,5 +1,6 @@
 out/
 tmp/
 .serena/
+.worktrees/
 .DS_Store
 data/*.txt
