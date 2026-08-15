@@ -26,6 +26,7 @@ import lifeflow.ui.PageShell;
 import lifeflow.ui.RequestsPanel;
 import lifeflow.ui.SidebarPanel;
 import lifeflow.ui.UiTheme;
+import lifeflow.ui.UiComponents;
 
 final class ModernUiTests {
     private ModernUiTests() {
@@ -34,6 +35,7 @@ final class ModernUiTests {
     static void run() throws Exception {
         boundedContentCapsWidePages();
         pageShellExposesSharedSections();
+        buttonsReserveSpaceForTheirLabels();
         sidebarKeepsOneActivePage();
         dashboardUsesDenseOperationsLayout();
         dashboardRefreshesLiveCounts();
@@ -61,6 +63,16 @@ final class ModernUiTests {
             assert namedComponent(shell, "pageToolbar") != null;
             assert namedComponent(shell, "pageBody") != null;
             assert namedComponent(shell, "pageFooter") != null;
+        });
+    }
+
+    private static void buttonsReserveSpaceForTheirLabels() throws Exception {
+        SwingUtilities.invokeAndWait(() -> {
+            JButton button = UiComponents.primaryButton("Create request");
+            int labelWidth = button.getFontMetrics(button.getFont())
+                    .stringWidth(button.getText());
+            assert button.getPreferredSize().width >= labelWidth + 48
+                    : "Buttons must size themselves from their full label";
         });
     }
 

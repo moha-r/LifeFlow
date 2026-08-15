@@ -249,7 +249,8 @@ public final class UiComponents {
             setForeground(foreground);
             setFont(UiTheme.BODY_BOLD);
             setBorder(new EmptyBorder(0, 16, 0, 16));
-            setPreferredSize(new Dimension(136, 40));
+            int labelWidth = getFontMetrics(getFont()).stringWidth(text);
+            setPreferredSize(new Dimension(Math.max(108, labelWidth + 48), 40));
             setFocusPainted(false);
             setContentAreaFilled(false);
             setOpaque(false);
