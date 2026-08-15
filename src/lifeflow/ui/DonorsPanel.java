@@ -49,21 +49,28 @@ public final class DonorsPanel extends JPanel {
     private final JTable table = new JTable(model);
     private final TableRowSorter<DefaultTableModel> sorter = new TableRowSorter<>(model);
     private final JTextField search = UiComponents.searchField("Search donors");
+    private final JLabel recordCount = UiComponents.muted("0 RECORDS");
     private final CardLayout centerLayout = new CardLayout();
     private final JPanel center = new JPanel(centerLayout);
 
     public DonorsPanel(LifeFlowController controller, Runnable onDataChanged,
                        Consumer<String> status) {
-        super(new BorderLayout(0, 18));
+        super(new BorderLayout());
         this.controller = controller;
         this.onDataChanged = onDataChanged;
         this.status = status;
         setBackground(UiTheme.BACKGROUND);
-        setBorder(BorderFactory.createEmptyBorder(28, 30, 28, 30));
-
-        add(buildHeader(), BorderLayout.NORTH);
-        add(buildCenter(), BorderLayout.CENTER);
+        PageShell shell = new PageShell("Donor registry",
+                "Review eligibility details and maintain registered donor records.");
+        shell.setActions(buildPageActions());
+        shell.setToolbar(buildToolbar());
+        shell.setBody(buildCenter());
+        add(shell, BorderLayout.CENTER);
         table.setRowSorter(sorter);
+        int[] widths = {90, 220, 70, 100, 100, 140};
+        for (int column = 0; column < widths.length; column++) {
+            table.getColumnModel().getColumn(column).setPreferredWidth(widths[column]);
+        }
         table.addMouseListener(new java.awt.event.MouseAdapter() {
             @Override
             public void mouseClicked(java.awt.event.MouseEvent event) {
@@ -76,38 +83,44 @@ public final class DonorsPanel extends JPanel {
         refreshData();
     }
 
-    private JPanel buildHeader() {
-        JPanel header = new JPanel(new BorderLayout(20, 0));
-        header.setOpaque(false);
-        JPanel copy = new JPanel();
-        copy.setOpaque(false);
-        copy.setLayout(new BoxLayout(copy, BoxLayout.Y_AXIS));
-        copy.add(UiComponents.title("Donors"));
-        copy.add(Box.createVerticalStrut(5));
-        copy.add(UiComponents.muted("Register donors and review donation eligibility details."));
-        header.add(copy, BorderLayout.WEST);
+    private JPanel buildPageActions() {
+        JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
+        actions.setOpaque(false);
+        JButton add = UiComponents.primaryButton("+ Add donor");
+        add.setPreferredSize(new java.awt.Dimension(122, 34));
+        add.addActionListener(event -> showAddDialog());
+        actions.add(add);
+        return actions;
+    }
 
-        JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 9, 4));
+    private JPanel buildToolbar() {
+        JPanel toolbar = new JPanel(new BorderLayout());
+        toolbar.setBackground(UiTheme.SURFACE);
+        toolbar.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(UiTheme.BORDER),
+                BorderFactory.createEmptyBorder(10, 12, 10, 12)));
+        toolbar.add(search, BorderLayout.WEST);
+        JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 9, 0));
         actions.setOpaque(false);
         JButton edit = UiComponents.secondaryButton("Edit selected");
-        JButton add = UiComponents.primaryButton("+ Add donor");
+        edit.setPreferredSize(new java.awt.Dimension(132, 34));
         edit.addActionListener(event -> showEditDialog());
-        add.addActionListener(event -> showAddDialog());
-        actions.add(search);
+        actions.add(recordCount);
         actions.add(edit);
-        actions.add(add);
-        header.add(actions, BorderLayout.EAST);
-        return header;
+        toolbar.add(actions, BorderLayout.EAST);
+        return toolbar;
     }
 
     private JPanel buildCenter() {
         center.setOpaque(false);
-        JPanel card = UiComponents.card(new BorderLayout());
+        JPanel card = UiComponents.densePanel(new BorderLayout());
+        card.setBorder(BorderFactory.createLineBorder(UiTheme.BORDER));
         JScrollPane scroll = UiComponents.tableScroll(table);
         card.add(scroll, BorderLayout.CENTER);
         center.add(card, TABLE_VIEW);
 
-        JPanel empty = UiComponents.card(new GridBagLayout());
+        JPanel empty = UiComponents.densePanel(new GridBagLayout());
+        empty.setBorder(BorderFactory.createLineBorder(UiTheme.BORDER));
         JPanel message = new JPanel();
         message.setOpaque(false);
         message.setLayout(new BoxLayout(message, BoxLayout.Y_AXIS));
@@ -143,9 +156,10 @@ public final class DonorsPanel extends JPanel {
     }
 
     private void updateFilter() {
-        String text = search.getText().trim();
+        String text = UiComponents.searchValue(search);
         sorter.setRowFilter(text.isEmpty() ? null
                 : RowFilter.regexFilter("(?i)" + Pattern.quote(text)));
+        recordCount.setText(sorter.getViewRowCount() + " RECORDS");
     }
 
     public void showAddDialog() {
@@ -310,6 +324,7 @@ public final class DonorsPanel extends JPanel {
                     donor.getWeightKg(), DashboardPanel.displayType(donor.getBloodType()),
                     donor.getLastDonationDate() == null ? "—" : donor.getLastDonationDate()});
         }
+        recordCount.setText(sorter.getViewRowCount() + " RECORDS");
         centerLayout.show(center, model.getRowCount() == 0 ? EMPTY_VIEW : TABLE_VIEW);
     }
 }

@@ -11,6 +11,8 @@ import java.awt.Graphics2D;
 import java.awt.Insets;
 import java.awt.LayoutManager;
 import java.awt.RenderingHints;
+import java.awt.event.FocusAdapter;
+import java.awt.event.FocusEvent;
 import javax.swing.BorderFactory;
 import javax.swing.AbstractAction;
 import javax.swing.JButton;
@@ -97,12 +99,46 @@ public final class UiComponents {
 
     public static JTextField searchField(String tooltip) {
         JTextField field = new JTextField();
+        field.setName("searchField");
         field.setToolTipText(tooltip);
-        field.setPreferredSize(new Dimension(230, 38));
+        field.setPreferredSize(new Dimension(250, 34));
         field.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createLineBorder(UiTheme.BORDER),
                 new EmptyBorder(7, 11, 7, 11)));
+        installPlaceholder(field, "Search " + tooltip.toLowerCase()
+                .replace("search ", "") + "…");
         return field;
+    }
+
+    public static String searchValue(JTextField field) {
+        return Boolean.TRUE.equals(field.getClientProperty("placeholderVisible"))
+                ? "" : field.getText().trim();
+    }
+
+    private static void installPlaceholder(JTextField field, String placeholder) {
+        Runnable show = () -> {
+            field.setText(placeholder);
+            field.setForeground(new Color(0x98A1B2));
+            field.putClientProperty("placeholderVisible", true);
+        };
+        show.run();
+        field.addFocusListener(new FocusAdapter() {
+            @Override
+            public void focusGained(FocusEvent event) {
+                if (Boolean.TRUE.equals(field.getClientProperty("placeholderVisible"))) {
+                    field.setText("");
+                    field.setForeground(UiTheme.NAVY);
+                    field.putClientProperty("placeholderVisible", false);
+                }
+            }
+
+            @Override
+            public void focusLost(FocusEvent event) {
+                if (field.getText().isBlank()) {
+                    show.run();
+                }
+            }
+        });
     }
 
     public static void styleInput(JComponent input) {
@@ -152,9 +188,11 @@ public final class UiComponents {
     }
 
     public static void configureTable(JTable table) {
-        table.setRowHeight(42);
-        table.setShowGrid(false);
-        table.setIntercellSpacing(new Dimension(0, 0));
+        table.setRowHeight(38);
+        table.setShowHorizontalLines(true);
+        table.setShowVerticalLines(true);
+        table.setGridColor(UiTheme.BORDER);
+        table.setIntercellSpacing(new Dimension(1, 1));
         table.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         table.setSelectionBackground(UiTheme.CORAL_LIGHT);
         table.setSelectionForeground(UiTheme.NAVY);
@@ -162,6 +200,7 @@ public final class UiComponents {
         table.setForeground(UiTheme.NAVY);
         table.setFillsViewportHeight(true);
         table.setAutoCreateRowSorter(true);
+        table.setDefaultRenderer(Object.class, new DenseCellRenderer());
         table.getTableHeader().setPreferredSize(new Dimension(0, 38));
         table.getTableHeader().setBackground(new Color(0xF8F9FC));
         table.getTableHeader().setForeground(UiTheme.MUTED);
@@ -273,6 +312,26 @@ public final class UiComponents {
                 setBackground(UiTheme.WARNING_LIGHT);
                 setForeground(UiTheme.WARNING);
             }
+            return this;
+        }
+    }
+
+    private static final class DenseCellRenderer extends DefaultTableCellRenderer {
+        private static final long serialVersionUID = 1L;
+
+        private DenseCellRenderer() {
+            setBorder(new EmptyBorder(0, 10, 0, 10));
+        }
+
+        @Override
+        public Component getTableCellRendererComponent(JTable table, Object value,
+                                                       boolean selected, boolean focus,
+                                                       int row, int column) {
+            super.getTableCellRendererComponent(table, value, selected, focus,
+                    row, column);
+            setForeground(UiTheme.NAVY);
+            setBackground(selected ? UiTheme.CORAL_LIGHT
+                    : row % 2 == 0 ? UiTheme.SURFACE : UiTheme.ROW_ALT);
             return this;
         }
     }

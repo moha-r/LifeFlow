@@ -8,6 +8,7 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.SwingUtilities;
 import javax.swing.JTable;
+import javax.swing.JTextField;
 import lifeflow.model.BloodRequest;
 import lifeflow.model.BloodType;
 import lifeflow.model.BloodUnit;
@@ -122,11 +123,24 @@ final class ModernUiTests {
             inventory.refreshData();
             requests.refreshData();
             matching.refreshData();
-            assert donors.getComponentCount() > 0;
-            assert inventory.getComponentCount() > 0;
-            assert requests.getComponentCount() > 0;
+            assertDataWorkspace(donors);
+            assertDataWorkspace(inventory);
+            assertDataWorkspace(requests);
             assert matching.getComponentCount() > 0;
         });
+    }
+
+    private static void assertDataWorkspace(Container workspace) {
+        assert namedComponent(workspace, "pageToolbar") != null;
+        Component search = namedComponent(workspace, "searchField");
+        assert search instanceof JTextField;
+        assert !((JTextField) search).getText().isBlank()
+                : "Search fields need visible placeholder text";
+        JTable table = firstTable(workspace);
+        assert table != null;
+        assert table.getShowHorizontalLines();
+        assert table.getShowVerticalLines();
+        assert table.getIntercellSpacing().width > 0;
     }
 
     private static String labelText(Container root, String name) {
@@ -154,6 +168,21 @@ final class ModernUiTests {
             }
             if (component instanceof Container container) {
                 Component found = namedComponent(container, name);
+                if (found != null) {
+                    return found;
+                }
+            }
+        }
+        return null;
+    }
+
+    private static JTable firstTable(Container root) {
+        for (Component component : root.getComponents()) {
+            if (component instanceof JTable table) {
+                return table;
+            }
+            if (component instanceof Container container) {
+                JTable found = firstTable(container);
                 if (found != null) {
                     return found;
                 }

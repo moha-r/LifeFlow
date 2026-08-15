@@ -46,22 +46,26 @@ public final class RequestsPanel extends JPanel {
     private final JTextField search = UiComponents.searchField("Search requests");
     private final JComboBox<String> statusFilter = new JComboBox<>(
             new String[]{"All statuses", "PENDING", "FULFILLED"});
+    private final JLabel recordCount = UiComponents.muted("0 RECORDS");
     private final CardLayout centerLayout = new CardLayout();
     private final JPanel center = new JPanel(centerLayout);
 
     public RequestsPanel(LifeFlowController controller, Runnable onDataChanged,
                          Consumer<String> status) {
-        super(new BorderLayout(0, 18));
+        super(new BorderLayout());
         this.controller = controller;
         this.onDataChanged = onDataChanged;
         this.status = status;
         setBackground(UiTheme.BACKGROUND);
-        setBorder(BorderFactory.createEmptyBorder(28, 30, 28, 30));
-        search.setPreferredSize(new java.awt.Dimension(180, 38));
+        search.setPreferredSize(new java.awt.Dimension(220, 34));
         UiComponents.styleInput(statusFilter);
-        statusFilter.setPreferredSize(new java.awt.Dimension(135, 38));
-        add(buildHeader(), BorderLayout.NORTH);
-        add(buildCenter(), BorderLayout.CENTER);
+        statusFilter.setPreferredSize(new java.awt.Dimension(135, 34));
+        PageShell shell = new PageShell("Request queue",
+                "Emergency requests are prioritised before regular requests.");
+        shell.setActions(buildPageActions());
+        shell.setToolbar(buildToolbar());
+        shell.setBody(buildCenter());
+        add(shell, BorderLayout.CENTER);
         table.setRowSorter(sorter);
         table.getColumnModel().getColumn(1).setCellRenderer(UiComponents.statusRenderer());
         table.getColumnModel().getColumn(7).setCellRenderer(UiComponents.statusRenderer());
@@ -81,37 +85,46 @@ public final class RequestsPanel extends JPanel {
         refreshData();
     }
 
-    private JPanel buildHeader() {
-        JPanel header = new JPanel(new BorderLayout(0, 10));
-        header.setOpaque(false);
-        JPanel copy = new JPanel();
-        copy.setOpaque(false);
-        copy.setLayout(new BoxLayout(copy, BoxLayout.Y_AXIS));
-        copy.add(UiComponents.title("Blood Requests"));
-        copy.add(Box.createVerticalStrut(5));
-        copy.add(UiComponents.muted("Emergency requests are always prioritised before regular requests."));
-        header.add(copy, BorderLayout.NORTH);
-        JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 9, 4));
+    private JPanel buildPageActions() {
+        JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
+        actions.setOpaque(false);
+        JButton add = UiComponents.primaryButton("+ New request");
+        add.setPreferredSize(new java.awt.Dimension(134, 34));
+        add.addActionListener(event -> showAddDialog());
+        actions.add(add);
+        return actions;
+    }
+
+    private JPanel buildToolbar() {
+        JPanel toolbar = new JPanel(new BorderLayout());
+        toolbar.setBackground(UiTheme.SURFACE);
+        toolbar.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(UiTheme.BORDER),
+                BorderFactory.createEmptyBorder(10, 12, 10, 12)));
+        JPanel filters = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+        filters.setOpaque(false);
+        filters.add(search);
+        filters.add(statusFilter);
+        toolbar.add(filters, BorderLayout.WEST);
+        JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 9, 0));
         actions.setOpaque(false);
         JButton edit = UiComponents.secondaryButton("Edit selected");
-        JButton add = UiComponents.primaryButton("+ New request");
-        add.setPreferredSize(new java.awt.Dimension(166, 40));
+        edit.setPreferredSize(new java.awt.Dimension(132, 34));
         edit.addActionListener(event -> showEditDialog());
-        add.addActionListener(event -> showAddDialog());
-        actions.add(search);
-        actions.add(statusFilter);
+        actions.add(recordCount);
         actions.add(edit);
-        actions.add(add);
-        header.add(actions, BorderLayout.SOUTH);
-        return header;
+        toolbar.add(actions, BorderLayout.EAST);
+        return toolbar;
     }
 
     private JPanel buildCenter() {
         center.setOpaque(false);
-        JPanel tableCard = UiComponents.card(new BorderLayout());
+        JPanel tableCard = UiComponents.densePanel(new BorderLayout());
+        tableCard.setBorder(BorderFactory.createLineBorder(UiTheme.BORDER));
         tableCard.add(UiComponents.tableScroll(table), BorderLayout.CENTER);
         center.add(tableCard, "table");
-        JPanel empty = UiComponents.card(new GridBagLayout());
+        JPanel empty = UiComponents.densePanel(new GridBagLayout());
+        empty.setBorder(BorderFactory.createLineBorder(UiTheme.BORDER));
         JPanel message = new JPanel();
         message.setOpaque(false);
         message.setLayout(new BoxLayout(message, BoxLayout.Y_AXIS));
@@ -137,7 +150,7 @@ public final class RequestsPanel extends JPanel {
     }
 
     private void updateFilter() {
-        String query = search.getText().trim();
+        String query = UiComponents.searchValue(search);
         String selected = statusFilter.getSelectedItem().toString();
         java.util.ArrayList<RowFilter<Object, Object>> filters = new java.util.ArrayList<>();
         if (!query.isEmpty()) {
@@ -147,6 +160,7 @@ public final class RequestsPanel extends JPanel {
             filters.add(RowFilter.regexFilter("^" + selected + "$", 7));
         }
         sorter.setRowFilter(filters.isEmpty() ? null : RowFilter.andFilter(filters));
+        recordCount.setText(sorter.getViewRowCount() + " RECORDS");
     }
 
     public void showAddDialog() {
@@ -287,6 +301,7 @@ public final class RequestsPanel extends JPanel {
                     request.getQuantity(), request.getRequestDate(), request.getPriority(),
                     request.getStatus()});
         }
+        recordCount.setText(sorter.getViewRowCount() + " RECORDS");
         centerLayout.show(center, model.getRowCount() == 0 ? "empty" : "table");
     }
 }

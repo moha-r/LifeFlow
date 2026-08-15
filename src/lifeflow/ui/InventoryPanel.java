@@ -45,19 +45,23 @@ public final class InventoryPanel extends JPanel {
     private final JTable table = new JTable(model);
     private final TableRowSorter<DefaultTableModel> sorter = new TableRowSorter<>(model);
     private final JTextField search = UiComponents.searchField("Search blood units");
+    private final JLabel recordCount = UiComponents.muted("0 RECORDS");
     private final CardLayout centerLayout = new CardLayout();
     private final JPanel center = new JPanel(centerLayout);
 
     public InventoryPanel(LifeFlowController controller, Runnable onDataChanged,
                           Consumer<String> status) {
-        super(new BorderLayout(0, 18));
+        super(new BorderLayout());
         this.controller = controller;
         this.onDataChanged = onDataChanged;
         this.status = status;
         setBackground(UiTheme.BACKGROUND);
-        setBorder(BorderFactory.createEmptyBorder(28, 30, 28, 30));
-        add(buildHeader(), BorderLayout.NORTH);
-        add(buildCenter(), BorderLayout.CENTER);
+        PageShell shell = new PageShell("Inventory registry",
+                "Track availability, expiry dates, and unit usage.");
+        shell.setActions(buildPageActions());
+        shell.setToolbar(buildToolbar());
+        shell.setBody(buildCenter());
+        add(shell, BorderLayout.CENTER);
         table.setRowSorter(sorter);
         table.getColumnModel().getColumn(5).setCellRenderer(UiComponents.statusRenderer());
         table.addMouseListener(new java.awt.event.MouseAdapter() {
@@ -72,35 +76,42 @@ public final class InventoryPanel extends JPanel {
         refreshData();
     }
 
-    private JPanel buildHeader() {
-        JPanel header = new JPanel(new BorderLayout(20, 0));
-        header.setOpaque(false);
-        JPanel copy = new JPanel();
-        copy.setOpaque(false);
-        copy.setLayout(new BoxLayout(copy, BoxLayout.Y_AXIS));
-        copy.add(UiComponents.title("Blood Inventory"));
-        copy.add(Box.createVerticalStrut(5));
-        copy.add(UiComponents.muted("Track availability, expiry dates, and unit usage."));
-        header.add(copy, BorderLayout.WEST);
-        JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 9, 4));
+    private JPanel buildPageActions() {
+        JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
+        actions.setOpaque(false);
+        JButton add = UiComponents.primaryButton("+ Add unit");
+        add.setPreferredSize(new java.awt.Dimension(116, 34));
+        add.addActionListener(event -> showAddDialog());
+        actions.add(add);
+        return actions;
+    }
+
+    private JPanel buildToolbar() {
+        JPanel toolbar = new JPanel(new BorderLayout());
+        toolbar.setBackground(UiTheme.SURFACE);
+        toolbar.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(UiTheme.BORDER),
+                BorderFactory.createEmptyBorder(10, 12, 10, 12)));
+        toolbar.add(search, BorderLayout.WEST);
+        JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 9, 0));
         actions.setOpaque(false);
         JButton edit = UiComponents.secondaryButton("Edit expiry");
-        JButton add = UiComponents.primaryButton("+ Add unit");
+        edit.setPreferredSize(new java.awt.Dimension(118, 34));
         edit.addActionListener(event -> showEditDialog());
-        add.addActionListener(event -> showAddDialog());
-        actions.add(search);
+        actions.add(recordCount);
         actions.add(edit);
-        actions.add(add);
-        header.add(actions, BorderLayout.EAST);
-        return header;
+        toolbar.add(actions, BorderLayout.EAST);
+        return toolbar;
     }
 
     private JPanel buildCenter() {
         center.setOpaque(false);
-        JPanel tableCard = UiComponents.card(new BorderLayout());
+        JPanel tableCard = UiComponents.densePanel(new BorderLayout());
+        tableCard.setBorder(BorderFactory.createLineBorder(UiTheme.BORDER));
         tableCard.add(UiComponents.tableScroll(table), BorderLayout.CENTER);
         center.add(tableCard, "table");
-        JPanel empty = UiComponents.card(new GridBagLayout());
+        JPanel empty = UiComponents.densePanel(new GridBagLayout());
+        empty.setBorder(BorderFactory.createLineBorder(UiTheme.BORDER));
         JPanel message = new JPanel();
         message.setOpaque(false);
         message.setLayout(new BoxLayout(message, BoxLayout.Y_AXIS));
@@ -125,9 +136,10 @@ public final class InventoryPanel extends JPanel {
     }
 
     private void updateFilter() {
-        String text = search.getText().trim();
+        String text = UiComponents.searchValue(search);
         sorter.setRowFilter(text.isEmpty() ? null
                 : RowFilter.regexFilter("(?i)" + Pattern.quote(text)));
+        recordCount.setText(sorter.getViewRowCount() + " RECORDS");
     }
 
     public void showAddDialog() {
@@ -319,6 +331,7 @@ public final class InventoryPanel extends JPanel {
                     DashboardPanel.displayType(unit.getBloodType()),
                     unit.getDonationDate(), unit.getExpiryDate(), unit.getStatus()});
         }
+        recordCount.setText(sorter.getViewRowCount() + " RECORDS");
         centerLayout.show(center, model.getRowCount() == 0 ? "empty" : "table");
     }
 
