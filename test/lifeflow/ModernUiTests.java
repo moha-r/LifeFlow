@@ -168,7 +168,9 @@ final class ModernUiTests {
         SwingUtilities.invokeAndWait(() -> readyPanel[0] = new MatchingPanel(
                 ready, () -> { }, message -> { }));
         assert namedComponent(readyPanel[0], "matchingSteps") != null;
-        assert namedComponent(readyPanel[0], "compatibleUnits") instanceof JTable;
+        Component compatible = namedComponent(readyPanel[0], "compatibleUnits");
+        assert compatible instanceof JTable;
+        assert "Ready Donor".equals(((JTable) compatible).getValueAt(0, 1));
         assert namedComponent(readyPanel[0], "matchingResult") != null;
         assert findButton(readyPanel[0], "Refresh queue")
                 .getPreferredSize().width >= 130;

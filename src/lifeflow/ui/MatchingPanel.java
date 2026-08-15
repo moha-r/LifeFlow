@@ -362,7 +362,7 @@ public final class MatchingPanel extends JPanel {
     private String donorName(BloodUnit unit) {
         for (Donor donor : controller.getDonors()) {
             if (donor.getId().equalsIgnoreCase(unit.getDonorId())) {
-                return donor.getName() + " (" + donor.getId() + ")";
+                return donor.getName();
             }
         }
         return unit.getDonorId();
