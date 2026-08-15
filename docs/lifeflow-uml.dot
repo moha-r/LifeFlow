@@ -1,0 +1,27 @@
+digraph LifeFlow {
+  graph [rankdir=TB, bgcolor="white", nodesep=0.45, ranksep=0.65];
+  node [shape=record, fontname="Helvetica", fontsize=10, color="#8b1e2d", penwidth=1.5];
+  edge [fontname="Helvetica", fontsize=9, color="#555555"];
+
+  BloodRequest [label="{BloodRequest (abstract)|- id : String\l- requesterName : String\l- bloodType : BloodType\l- quantity : int\l- requestDate : LocalDate\l- status : RequestStatus\l|+ getPriority() : int\l+ getKind() : String\l}"];
+  RegularRequest [label="{RegularRequest||+ getPriority() : int\l+ getKind() : String\l}"];
+  EmergencyRequest [label="{EmergencyRequest||+ getPriority() : int\l+ getKind() : String\l}"];
+  Donor [label="{Donor|- id : String\l- name : String\l- age : int\l- weightKg : double\l- bloodType : BloodType\l- lastDonationDate : LocalDate\l|+ isEligible(LocalDate) : boolean\l+ recordDonation(LocalDate) : void\l}"];
+  BloodUnit [label="{BloodUnit|- id : String\l- donorId : String\l- bloodType : BloodType\l- donationDate : LocalDate\l- expiryDate : LocalDate\l- status : UnitStatus\l|+ isAvailable(LocalDate) : boolean\l}"];
+  BloodInventory [label="{BloodInventory|- units : ArrayList BloodUnit\l|+ addUnit(BloodUnit) : void\l+ getAvailableUnits(...) : ArrayList\l+ getStockCounts(...) : HashMap\l}"];
+  MatchingService [label="{MatchingService|- inventory : BloodInventory\l|+ findNextPending(...) : BloodRequest\l+ match(...) : ArrayList\l}"];
+  FileManager [label="{FileManager|- dataDirectory : Path\l|+ loadDonors() : ArrayList\l+ loadUnits() : ArrayList\l+ loadRequests() : ArrayList\l+ save...() : void\l}"];
+  LifeFlowFrame [label="{LifeFlowFrame|Swing tabs and tables|Donors\lInventory\lRequests\lMatching\l}"];
+
+  RegularRequest -> BloodRequest [arrowhead=empty, label="extends"];
+  EmergencyRequest -> BloodRequest [arrowhead=empty, label="extends"];
+  Donor -> BloodUnit [label="creates 0..*"];
+  BloodInventory -> BloodUnit [arrowhead=diamond, label="owns"];
+  MatchingService -> BloodInventory [label="uses"];
+  MatchingService -> BloodRequest [label="processes"];
+  FileManager -> Donor [label="loads/saves"];
+  FileManager -> BloodUnit [label="loads/saves"];
+  FileManager -> BloodRequest [label="loads/saves"];
+  LifeFlowFrame -> MatchingService [label="calls"];
+  LifeFlowFrame -> FileManager [label="calls"];
+}

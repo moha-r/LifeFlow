@@ -1,0 +1,4 @@
+id|name|age|weightKg|bloodType|lastDonationDate
+D001|Aisha Noor|25|55.0|O_NEG|
+D002|Daniel Lee|32|72.5|A_POS|
+D003|Maya Rahman|29|61.0|O_NEG|
