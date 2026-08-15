@@ -5,6 +5,7 @@ import java.awt.Container;
 import java.nio.file.Files;
 import java.util.ArrayList;
 import javax.swing.JLabel;
+import javax.swing.JButton;
 import javax.swing.JPanel;
 import javax.swing.SwingUtilities;
 import javax.swing.JTable;
@@ -36,6 +37,7 @@ final class ModernUiTests {
         dashboardUsesDenseOperationsLayout();
         dashboardRefreshesLiveCounts();
         dataPagesConstructAndRefreshHeadlessly();
+        matchingUsesExplicitOperationalFlow();
     }
 
     private static void boundedContentCapsWidePages() throws Exception {
@@ -128,6 +130,35 @@ final class ModernUiTests {
             assertDataWorkspace(requests);
             assert matching.getComponentCount() > 0;
         });
+    }
+
+    private static void matchingUsesExplicitOperationalFlow() throws Exception {
+        LifeFlowController empty = new LifeFlowController(
+                new ArrayList<Donor>(), new ArrayList<BloodUnit>(),
+                new ArrayList<BloodRequest>(),
+                new FileManager(Files.createTempDirectory("lifeflow-matching-empty-")));
+        MatchingPanel[] emptyPanel = new MatchingPanel[1];
+        SwingUtilities.invokeAndWait(() -> emptyPanel[0] = new MatchingPanel(
+                empty, () -> { }, message -> { }));
+        assert namedComponent(emptyPanel[0], "matchingEmptyState") != null;
+        Component emptyProcess = namedComponent(emptyPanel[0], "processMatchingButton");
+        assert emptyProcess instanceof JButton;
+        assert !emptyProcess.isEnabled();
+
+        LifeFlowController ready = new LifeFlowController(
+                new ArrayList<Donor>(), new ArrayList<BloodUnit>(),
+                new ArrayList<BloodRequest>(),
+                new FileManager(Files.createTempDirectory("lifeflow-matching-ready-")));
+        ready.addDonor("D1", "Ready Donor", 30, 60.0, BloodType.O_NEG, null);
+        java.time.LocalDate donation = java.time.LocalDate.now().minusDays(1);
+        ready.addBloodUnit("U1", "D1", donation, donation.plusDays(30));
+        ready.addRequest("R1", "Emergency Room", BloodType.O_NEG, 1, true);
+        MatchingPanel[] readyPanel = new MatchingPanel[1];
+        SwingUtilities.invokeAndWait(() -> readyPanel[0] = new MatchingPanel(
+                ready, () -> { }, message -> { }));
+        assert namedComponent(readyPanel[0], "matchingSteps") != null;
+        assert namedComponent(readyPanel[0], "compatibleUnits") instanceof JTable;
+        assert namedComponent(readyPanel[0], "matchingResult") != null;
     }
 
     private static void assertDataWorkspace(Container workspace) {
