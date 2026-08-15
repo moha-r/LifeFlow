@@ -2,19 +2,12 @@ package lifeflow.ui;
 
 import java.awt.BorderLayout;
 import java.awt.CardLayout;
-import java.awt.Color;
 import java.awt.Dimension;
-import java.awt.FlowLayout;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.Map;
 import javax.swing.BorderFactory;
-import javax.swing.Box;
-import javax.swing.BoxLayout;
-import javax.swing.JButton;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
@@ -39,9 +32,10 @@ public final class LifeFlowFrame extends JFrame {
     private final LifeFlowController controller;
     private final CardLayout pageLayout = new CardLayout();
     private final JPanel pages = new JPanel(pageLayout);
-    private final Map<String, JButton> navigation = new LinkedHashMap<>();
     private final JLabel statusLabel = new JLabel(" ");
+    private final JLabel breadcrumbLabel = new JLabel("Workspace / Overview");
     private final Timer statusTimer = new Timer(3500, event -> statusLabel.setText(" "));
+    private SidebarPanel sidebarPanel;
 
     private DashboardPanel dashboardPanel;
     private DonorsPanel donorsPanel;
@@ -91,98 +85,46 @@ public final class LifeFlowFrame extends JFrame {
                 matchingPanel::processNextRequest);
 
         pages.setBackground(UiTheme.BACKGROUND);
-        pages.add(dashboardPanel, DASHBOARD);
-        pages.add(donorsPanel, DONORS);
-        pages.add(inventoryPanel, INVENTORY);
-        pages.add(requestsPanel, REQUESTS);
-        pages.add(matchingPanel, MATCHING);
+        pages.add(new BoundedContentPanel(dashboardPanel), DASHBOARD);
+        pages.add(new BoundedContentPanel(donorsPanel), DONORS);
+        pages.add(new BoundedContentPanel(inventoryPanel), INVENTORY);
+        pages.add(new BoundedContentPanel(requestsPanel), REQUESTS);
+        pages.add(new BoundedContentPanel(matchingPanel), MATCHING);
 
         JPanel main = new JPanel(new BorderLayout());
         main.setBackground(UiTheme.BACKGROUND);
+        main.add(buildUtilityBar(), BorderLayout.NORTH);
         main.add(pages, BorderLayout.CENTER);
         main.add(buildStatusBar(), BorderLayout.SOUTH);
 
+        sidebarPanel = new SidebarPanel(this::showPage);
         JPanel root = new JPanel(new BorderLayout());
         root.setBackground(UiTheme.BACKGROUND);
-        root.add(buildSidebar(), BorderLayout.WEST);
+        root.add(sidebarPanel, BorderLayout.WEST);
         root.add(main, BorderLayout.CENTER);
         setContentPane(root);
     }
 
-    private JPanel buildSidebar() {
-        JPanel sidebar = new JPanel(new BorderLayout());
-        sidebar.setBackground(UiTheme.SURFACE);
-        sidebar.setPreferredSize(new Dimension(275, 0));
-        sidebar.setBorder(BorderFactory.createMatteBorder(0, 0, 0, 1, UiTheme.BORDER));
-
-        JPanel top = new JPanel();
-        top.setBackground(UiTheme.SURFACE);
-        top.setLayout(new BoxLayout(top, BoxLayout.Y_AXIS));
-        top.setBorder(BorderFactory.createEmptyBorder(28, 20, 20, 20));
-        top.add(buildBrand());
-        top.add(Box.createVerticalStrut(34));
-        addNavButton(top, DASHBOARD, "◉ Dashboard");
-        top.add(Box.createVerticalStrut(7));
-        addNavButton(top, DONORS, "♡ Donors");
-        top.add(Box.createVerticalStrut(7));
-        addNavButton(top, INVENTORY, "▦ Inventory");
-        top.add(Box.createVerticalStrut(7));
-        addNavButton(top, REQUESTS, "☷ Requests");
-        top.add(Box.createVerticalStrut(7));
-        addNavButton(top, MATCHING, "⇄ Matching");
-        sidebar.add(top, BorderLayout.NORTH);
-
-        JPanel notice = new JPanel();
-        notice.setBackground(UiTheme.CORAL_LIGHT);
-        notice.setLayout(new BoxLayout(notice, BoxLayout.Y_AXIS));
-        notice.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createEmptyBorder(14, 16, 20, 16),
-                BorderFactory.createCompoundBorder(
-                        BorderFactory.createLineBorder(new Color(0xF7CCD6)),
-                        BorderFactory.createEmptyBorder(12, 12, 12, 12))));
-        JLabel label = new JLabel("Educational simulation");
-        label.setFont(UiTheme.BODY_BOLD);
-        label.setForeground(UiTheme.CORAL_DARK);
-        notice.add(label);
-        notice.add(Box.createVerticalStrut(6));
-        JLabel copy = new JLabel("<html>Not for medical or<br>transfusion decisions.</html>");
-        copy.setFont(UiTheme.SMALL);
-        copy.setForeground(UiTheme.MUTED);
-        notice.add(copy);
-        sidebar.add(notice, BorderLayout.SOUTH);
-        return sidebar;
-    }
-
-    private JPanel buildBrand() {
-        JPanel brand = new JPanel(new FlowLayout(FlowLayout.LEFT, 9, 0));
-        brand.setOpaque(false);
-        brand.setMaximumSize(new Dimension(Integer.MAX_VALUE, 46));
-        JLabel mark = new JLabel("♥");
-        mark.setFont(new java.awt.Font(java.awt.Font.SANS_SERIF,
-                java.awt.Font.BOLD, 31));
-        mark.setForeground(UiTheme.CORAL);
-        JPanel copy = new JPanel();
-        copy.setOpaque(false);
-        copy.setLayout(new BoxLayout(copy, BoxLayout.Y_AXIS));
-        JLabel name = new JLabel("LifeFlow");
-        name.setFont(new java.awt.Font(java.awt.Font.SANS_SERIF,
-                java.awt.Font.BOLD, 19));
-        name.setForeground(UiTheme.NAVY);
-        JLabel subtitle = new JLabel("Give blood. Save lives.");
-        subtitle.setFont(UiTheme.SMALL);
-        subtitle.setForeground(UiTheme.CORAL);
-        copy.add(name);
-        copy.add(subtitle);
-        brand.add(mark);
-        brand.add(copy);
-        return brand;
-    }
-
-    private void addNavButton(JPanel parent, String page, String text) {
-        JButton button = UiComponents.navButton(text);
-        button.addActionListener(event -> showPage(page));
-        navigation.put(page, button);
-        parent.add(button);
+    private JPanel buildUtilityBar() {
+        JPanel bar = new JPanel(new BorderLayout());
+        bar.setBackground(UiTheme.SURFACE);
+        bar.setPreferredSize(new Dimension(0, UiTheme.UTILITY_HEIGHT));
+        bar.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createMatteBorder(0, 0, 1, 0, UiTheme.BORDER),
+                BorderFactory.createEmptyBorder(0, UiTheme.SPACE_LG,
+                        0, UiTheme.SPACE_LG)));
+        breadcrumbLabel.setFont(UiTheme.SMALL);
+        breadcrumbLabel.setForeground(UiTheme.MUTED);
+        bar.add(breadcrumbLabel, BorderLayout.WEST);
+        JLabel ready = new JLabel("●  SYSTEM READY");
+        ready.setOpaque(true);
+        ready.setBackground(UiTheme.SUCCESS_LIGHT);
+        ready.setForeground(UiTheme.SUCCESS);
+        ready.setFont(new java.awt.Font(java.awt.Font.SANS_SERIF,
+                java.awt.Font.BOLD, 10));
+        ready.setBorder(BorderFactory.createEmptyBorder(6, 9, 6, 9));
+        bar.add(ready, BorderLayout.EAST);
+        return bar;
     }
 
     private JPanel buildStatusBar() {
@@ -203,9 +145,23 @@ public final class LifeFlowFrame extends JFrame {
 
     private void showPage(String page) {
         pageLayout.show(pages, page);
-        for (Map.Entry<String, JButton> entry : navigation.entrySet()) {
-            UiComponents.setNavActive(entry.getValue(), entry.getKey().equals(page));
+        if (sidebarPanel != null) {
+            sidebarPanel.showActive(page);
         }
+        breadcrumbLabel.setText("Workspace / " + displayPageName(page));
+    }
+
+    private static String displayPageName(String page) {
+        if (page.equals(DASHBOARD)) {
+            return "Overview";
+        }
+        if (page.equals(INVENTORY)) {
+            return "Inventory";
+        }
+        if (page.equals(REQUESTS)) {
+            return "Requests";
+        }
+        return page;
     }
 
     private void showStatus(String message) {

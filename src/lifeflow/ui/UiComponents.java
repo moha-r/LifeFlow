@@ -74,17 +74,17 @@ public final class UiComponents {
     }
 
     public static JButton navButton(String text) {
-        ModernButton button = new ModernButton(text, UiTheme.SURFACE,
-                UiTheme.NAVY, UiTheme.CORAL_LIGHT);
+        ModernButton button = new ModernButton(text, UiTheme.SIDEBAR,
+                UiTheme.SIDEBAR_TEXT, UiTheme.SIDEBAR_HOVER);
         button.setHorizontalAlignment(SwingConstants.LEFT);
-        button.setPreferredSize(new Dimension(208, 46));
-        button.setMaximumSize(new Dimension(Integer.MAX_VALUE, 46));
+        button.setPreferredSize(new Dimension(196, 43));
+        button.setMaximumSize(new Dimension(Integer.MAX_VALUE, 43));
         return button;
     }
 
     public static void setNavActive(JButton button, boolean active) {
         button.putClientProperty("navActive", active);
-        button.setForeground(active ? UiTheme.CORAL : UiTheme.NAVY);
+        button.setForeground(active ? Color.WHITE : UiTheme.SIDEBAR_TEXT);
         button.repaint();
     }
 
@@ -218,7 +218,10 @@ public final class UiComponents {
                     RenderingHints.VALUE_ANTIALIAS_ON);
             Color color = getModel().isRollover() ? hover : fill;
             if (Boolean.TRUE.equals(getClientProperty("navActive"))) {
-                color = UiTheme.CORAL_LIGHT;
+                color = UiTheme.CORAL;
+            }
+            if (!isEnabled()) {
+                color = UiTheme.BORDER;
             }
             if (getModel().isPressed()) {
                 color = color.darker();

@@ -20,6 +20,7 @@ import lifeflow.ui.InventoryPanel;
 import lifeflow.ui.MatchingPanel;
 import lifeflow.ui.PageShell;
 import lifeflow.ui.RequestsPanel;
+import lifeflow.ui.SidebarPanel;
 import lifeflow.ui.UiTheme;
 
 final class ModernUiTests {
@@ -29,6 +30,7 @@ final class ModernUiTests {
     static void run() throws Exception {
         boundedContentCapsWidePages();
         pageShellExposesSharedSections();
+        sidebarKeepsOneActivePage();
         dashboardRefreshesLiveCounts();
         dataPagesConstructAndRefreshHeadlessly();
     }
@@ -53,6 +55,21 @@ final class ModernUiTests {
             assert namedComponent(shell, "pageToolbar") != null;
             assert namedComponent(shell, "pageBody") != null;
             assert namedComponent(shell, "pageFooter") != null;
+        });
+    }
+
+    private static void sidebarKeepsOneActivePage() throws Exception {
+        SwingUtilities.invokeAndWait(() -> {
+            SidebarPanel sidebar = new SidebarPanel(page -> { });
+            sidebar.showActive("Dashboard");
+            assert sidebar.getActiveCount() == 1;
+            assert sidebar.isActive("Dashboard");
+            sidebar.showActive("Donors");
+            assert sidebar.getActiveCount() == 1;
+            assert sidebar.isActive("Donors");
+            assert !sidebar.isActive("Dashboard");
+            assert !UiTheme.SIDEBAR_HOVER.equals(UiTheme.CORAL)
+                    : "Hover and active navigation must look different";
         });
     }
 
