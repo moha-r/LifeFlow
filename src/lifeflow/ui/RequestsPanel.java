@@ -89,7 +89,7 @@ public final class RequestsPanel extends JPanel {
         JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
         actions.setOpaque(false);
         JButton add = UiComponents.primaryButton("+ New request");
-        add.setPreferredSize(new java.awt.Dimension(134, 34));
+        add.setPreferredSize(new java.awt.Dimension(154, 34));
         add.addActionListener(event -> showAddDialog());
         actions.add(add);
         return actions;

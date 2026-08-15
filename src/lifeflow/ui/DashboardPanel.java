@@ -8,6 +8,7 @@ import java.awt.FlowLayout;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.GridLayout;
+import java.awt.Rectangle;
 import java.time.LocalDate;
 import java.util.HashMap;
 import javax.swing.BorderFactory;
@@ -17,6 +18,7 @@ import javax.swing.JButton;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
+import javax.swing.Scrollable;
 import javax.swing.JTable;
 import javax.swing.SwingConstants;
 import javax.swing.table.DefaultTableModel;
@@ -71,7 +73,7 @@ public final class DashboardPanel extends JPanel {
         JButton request = UiComponents.primaryButton("+ Request");
         donor.setPreferredSize(new Dimension(94, 34));
         unit.setPreferredSize(new Dimension(86, 34));
-        request.setPreferredSize(new Dimension(104, 34));
+        request.setPreferredSize(new Dimension(118, 34));
         donor.addActionListener(event -> addDonor.run());
         unit.addActionListener(event -> addUnit.run());
         request.addActionListener(event -> addRequest.run());
@@ -82,7 +84,7 @@ public final class DashboardPanel extends JPanel {
     }
 
     private JScrollPane buildScrollableBody() {
-        JPanel content = new JPanel();
+        JPanel content = new ViewportWidthPanel();
         content.setOpaque(false);
         content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
         JPanel metrics = buildMetrics();
@@ -98,7 +100,9 @@ public final class DashboardPanel extends JPanel {
         content.add(queue);
 
         JScrollPane scroll = new JScrollPane(content);
+        scroll.setName("dashboardScroll");
         scroll.setBorder(null);
+        scroll.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
         scroll.getViewport().setBackground(UiTheme.BACKGROUND);
         scroll.getVerticalScrollBar().setUnitIncrement(16);
         return scroll;
@@ -329,5 +333,37 @@ public final class DashboardPanel extends JPanel {
 
     static String displayType(BloodType type) {
         return type.name().replace("_POS", "+").replace("_NEG", "-");
+    }
+
+    private static final class ViewportWidthPanel extends JPanel
+            implements Scrollable {
+        private static final long serialVersionUID = 1L;
+
+        @Override
+        public Dimension getPreferredScrollableViewportSize() {
+            return getPreferredSize();
+        }
+
+        @Override
+        public int getScrollableUnitIncrement(Rectangle visibleRect,
+                                              int orientation, int direction) {
+            return 16;
+        }
+
+        @Override
+        public int getScrollableBlockIncrement(Rectangle visibleRect,
+                                               int orientation, int direction) {
+            return Math.max(16, visibleRect.height - 32);
+        }
+
+        @Override
+        public boolean getScrollableTracksViewportWidth() {
+            return true;
+        }
+
+        @Override
+        public boolean getScrollableTracksViewportHeight() {
+            return false;
+        }
     }
 }

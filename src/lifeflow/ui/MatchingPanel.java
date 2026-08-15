@@ -78,7 +78,7 @@ public final class MatchingPanel extends JPanel {
         JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
         actions.setOpaque(false);
         JButton refresh = UiComponents.secondaryButton("Refresh queue");
-        refresh.setPreferredSize(new Dimension(118, 34));
+        refresh.setPreferredSize(new Dimension(136, 34));
         refresh.addActionListener(event -> refreshData());
         actions.add(refresh);
         return actions;
@@ -188,7 +188,8 @@ public final class MatchingPanel extends JPanel {
         quantities.setMaximumSize(new Dimension(Integer.MAX_VALUE, 62));
         content.add(quantities);
         content.add(Box.createVerticalStrut(10));
-        JLabel atomic = new JLabel("<html>All-or-nothing: insufficient stock changes no status.</html>");
+        JLabel atomic = new JLabel("Atomic: insufficient stock changes nothing.");
+        atomic.setName("atomicNotice");
         atomic.setOpaque(true);
         atomic.setBackground(UiTheme.WARNING_LIGHT);
         atomic.setForeground(new Color(0x9B660C));

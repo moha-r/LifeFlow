@@ -7,6 +7,7 @@ import java.util.ArrayList;
 import javax.swing.JLabel;
 import javax.swing.JButton;
 import javax.swing.JPanel;
+import javax.swing.JScrollPane;
 import javax.swing.SwingUtilities;
 import javax.swing.JTable;
 import javax.swing.JTextField;
@@ -93,6 +94,14 @@ final class ModernUiTests {
         assert ((JTable) inventory).getColumnCount() == 4;
         assert namedComponent(panel[0], "priorityRequestPanel") != null;
         assert namedComponent(panel[0], "requestQueueTable") instanceof JTable;
+        Component dashboardScroll = namedComponent(panel[0], "dashboardScroll");
+        assert dashboardScroll instanceof JScrollPane;
+        assert ((JScrollPane) dashboardScroll).getHorizontalScrollBarPolicy()
+                == JScrollPane.HORIZONTAL_SCROLLBAR_NEVER;
+        JButton requestAction = findButton(panel[0], "+ Request");
+        assert requestAction != null;
+        assert requestAction.getPreferredSize().width >= 116
+                : "The primary dashboard action must not truncate its label";
     }
 
     private static void dashboardRefreshesLiveCounts() throws Exception {
@@ -128,6 +137,8 @@ final class ModernUiTests {
             assertDataWorkspace(donors);
             assertDataWorkspace(inventory);
             assertDataWorkspace(requests);
+            assert findButton(donors, "+ Add donor").getPreferredSize().width >= 136;
+            assert findButton(requests, "+ New request").getPreferredSize().width >= 150;
             assert matching.getComponentCount() > 0;
         });
     }
@@ -159,6 +170,11 @@ final class ModernUiTests {
         assert namedComponent(readyPanel[0], "matchingSteps") != null;
         assert namedComponent(readyPanel[0], "compatibleUnits") instanceof JTable;
         assert namedComponent(readyPanel[0], "matchingResult") != null;
+        assert findButton(readyPanel[0], "Refresh queue")
+                .getPreferredSize().width >= 130;
+        Component atomic = namedComponent(readyPanel[0], "atomicNotice");
+        assert atomic instanceof JLabel;
+        assert ((JLabel) atomic).getText().contains("changes nothing");
     }
 
     private static void assertDataWorkspace(Container workspace) {
@@ -214,6 +230,21 @@ final class ModernUiTests {
             }
             if (component instanceof Container container) {
                 JTable found = firstTable(container);
+                if (found != null) {
+                    return found;
+                }
+            }
+        }
+        return null;
+    }
+
+    private static JButton findButton(Container root, String text) {
+        for (Component component : root.getComponents()) {
+            if (component instanceof JButton button && text.equals(button.getText())) {
+                return button;
+            }
+            if (component instanceof Container container) {
+                JButton found = findButton(container, text);
                 if (found != null) {
                     return found;
                 }

@@ -87,7 +87,7 @@ public final class DonorsPanel extends JPanel {
         JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
         actions.setOpaque(false);
         JButton add = UiComponents.primaryButton("+ Add donor");
-        add.setPreferredSize(new java.awt.Dimension(122, 34));
+        add.setPreferredSize(new java.awt.Dimension(140, 34));
         add.addActionListener(event -> showAddDialog());
         actions.add(add);
         return actions;
