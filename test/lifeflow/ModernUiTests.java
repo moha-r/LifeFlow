@@ -7,6 +7,7 @@ import java.util.ArrayList;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.SwingUtilities;
+import javax.swing.JTable;
 import lifeflow.model.BloodRequest;
 import lifeflow.model.BloodType;
 import lifeflow.model.BloodUnit;
@@ -31,6 +32,7 @@ final class ModernUiTests {
         boundedContentCapsWidePages();
         pageShellExposesSharedSections();
         sidebarKeepsOneActivePage();
+        dashboardUsesDenseOperationsLayout();
         dashboardRefreshesLiveCounts();
         dataPagesConstructAndRefreshHeadlessly();
     }
@@ -71,6 +73,23 @@ final class ModernUiTests {
             assert !UiTheme.SIDEBAR_HOVER.equals(UiTheme.CORAL)
                     : "Hover and active navigation must look different";
         });
+    }
+
+    private static void dashboardUsesDenseOperationsLayout() throws Exception {
+        LifeFlowController controller = new LifeFlowController(
+                new ArrayList<Donor>(), new ArrayList<BloodUnit>(),
+                new ArrayList<BloodRequest>(),
+                new FileManager(Files.createTempDirectory("lifeflow-dashboard-layout-")));
+        DashboardPanel[] panel = new DashboardPanel[1];
+        SwingUtilities.invokeAndWait(() -> panel[0] = new DashboardPanel(
+                controller, () -> { }, () -> { }, () -> { }, () -> { }));
+
+        assert namedComponent(panel[0], "dashboardMetrics") != null;
+        Component inventory = namedComponent(panel[0], "inventoryStatusTable");
+        assert inventory instanceof JTable;
+        assert ((JTable) inventory).getColumnCount() == 4;
+        assert namedComponent(panel[0], "priorityRequestPanel") != null;
+        assert namedComponent(panel[0], "requestQueueTable") instanceof JTable;
     }
 
     private static void dashboardRefreshesLiveCounts() throws Exception {

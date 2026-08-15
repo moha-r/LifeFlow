@@ -41,6 +41,13 @@ public final class UiComponents {
         return panel;
     }
 
+    public static JPanel densePanel(LayoutManager layout) {
+        RoundedPanel panel = new RoundedPanel(layout, 8);
+        panel.setBackground(UiTheme.SURFACE);
+        panel.setBorder(new EmptyBorder(0, 0, 0, 0));
+        return panel;
+    }
+
     public static JLabel title(String text) {
         JLabel label = new JLabel(text);
         label.setFont(UiTheme.TITLE);
