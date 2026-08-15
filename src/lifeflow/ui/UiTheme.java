@@ -20,12 +20,25 @@ public final class UiTheme {
     public static final Color WARNING_LIGHT = new Color(0xFFF6E5);
     public static final Color DANGER = new Color(0xC9364F);
     public static final Color DANGER_LIGHT = new Color(0xFDECEF);
+    public static final Color SIDEBAR = new Color(0x172033);
+    public static final Color SIDEBAR_HOVER = new Color(0x263147);
+    public static final Color SIDEBAR_TEXT = new Color(0xD8DFEB);
+    public static final Color SIDEBAR_MUTED = new Color(0x8D98AD);
+    public static final Color ROW_ALT = new Color(0xFBFCFD);
 
     public static final Font TITLE = new Font(Font.SANS_SERIF, Font.BOLD, 26);
     public static final Font HEADING = new Font(Font.SANS_SERIF, Font.BOLD, 17);
     public static final Font BODY = new Font(Font.SANS_SERIF, Font.PLAIN, 14);
     public static final Font BODY_BOLD = new Font(Font.SANS_SERIF, Font.BOLD, 14);
     public static final Font SMALL = new Font(Font.SANS_SERIF, Font.PLAIN, 12);
+
+    public static final int SPACE_XS = 8;
+    public static final int SPACE_SM = 12;
+    public static final int SPACE_MD = 18;
+    public static final int SPACE_LG = 22;
+    public static final int SIDEBAR_WIDTH = 224;
+    public static final int UTILITY_HEIGHT = 56;
+    public static final int CONTENT_MAX_WIDTH = 1320;
 
     private UiTheme() {
     }

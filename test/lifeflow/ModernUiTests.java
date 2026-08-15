@@ -5,6 +5,7 @@ import java.awt.Container;
 import java.nio.file.Files;
 import java.util.ArrayList;
 import javax.swing.JLabel;
+import javax.swing.JPanel;
 import javax.swing.SwingUtilities;
 import lifeflow.model.BloodRequest;
 import lifeflow.model.BloodType;
@@ -12,19 +13,47 @@ import lifeflow.model.BloodUnit;
 import lifeflow.model.Donor;
 import lifeflow.persistence.FileManager;
 import lifeflow.service.LifeFlowController;
+import lifeflow.ui.BoundedContentPanel;
 import lifeflow.ui.DashboardPanel;
 import lifeflow.ui.DonorsPanel;
 import lifeflow.ui.InventoryPanel;
 import lifeflow.ui.MatchingPanel;
+import lifeflow.ui.PageShell;
 import lifeflow.ui.RequestsPanel;
+import lifeflow.ui.UiTheme;
 
 final class ModernUiTests {
     private ModernUiTests() {
     }
 
     static void run() throws Exception {
+        boundedContentCapsWidePages();
+        pageShellExposesSharedSections();
         dashboardRefreshesLiveCounts();
         dataPagesConstructAndRefreshHeadlessly();
+    }
+
+    private static void boundedContentCapsWidePages() throws Exception {
+        SwingUtilities.invokeAndWait(() -> {
+            JPanel child = new JPanel();
+            BoundedContentPanel bounded = new BoundedContentPanel(child);
+            bounded.setSize(1600, 700);
+            bounded.doLayout();
+            assert child.getWidth() == UiTheme.CONTENT_MAX_WIDTH
+                    : "Wide pages must stop at the approved content width";
+            assert child.getX() == (1600 - UiTheme.CONTENT_MAX_WIDTH) / 2
+                    : "Bounded content must stay centered";
+        });
+    }
+
+    private static void pageShellExposesSharedSections() throws Exception {
+        SwingUtilities.invokeAndWait(() -> {
+            PageShell shell = new PageShell("Donor registry", "Manage donors.");
+            assert namedComponent(shell, "pageHeader") != null;
+            assert namedComponent(shell, "pageToolbar") != null;
+            assert namedComponent(shell, "pageBody") != null;
+            assert namedComponent(shell, "pageFooter") != null;
+        });
     }
 
     private static void dashboardRefreshesLiveCounts() throws Exception {
@@ -71,6 +100,24 @@ final class ModernUiTests {
             }
             if (component instanceof Container container) {
                 String found = labelText(container, name);
+                if (found != null) {
+                    return found;
+                }
+            }
+        }
+        return null;
+    }
+
+    private static Component namedComponent(Container root, String name) {
+        if (name.equals(root.getName())) {
+            return root;
+        }
+        for (Component component : root.getComponents()) {
+            if (name.equals(component.getName())) {
+                return component;
+            }
+            if (component instanceof Container container) {
+                Component found = namedComponent(container, name);
                 if (found != null) {
                     return found;
                 }
