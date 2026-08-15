@@ -51,6 +51,10 @@ public class BloodUnit {
         return status;
     }
 
+    public void updateExpiryDate(LocalDate expiryDate) {
+        this.expiryDate = expiryDate;
+    }
+
     public void setStatus(UnitStatus status) {
         this.status = status;
     }

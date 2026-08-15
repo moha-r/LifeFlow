@@ -11,7 +11,7 @@ the highest-priority request with available units of the same ABO and Rh group.
 
 ## Requirements covered
 
-- Java Swing GUI with four tabs.
+- Modern Java Swing GUI with a dashboard, sidebar, and five focused screens.
 - Encapsulation through private fields and accessors.
 - Abstraction with the abstract `BloodRequest` class.
 - Inheritance through `RegularRequest` and `EmergencyRequest`.
@@ -62,7 +62,7 @@ src/lifeflow/
 ├── model/        Donors, units, requests, enums
 ├── service/      Inventory and matching logic
 ├── persistence/  Text-file persistence
-└── ui/           Swing user interface
+└── ui/           Dashboard, sidebar, pages, dialogs, and shared theme
 
 test/lifeflow/    Assertion-based automated tests
 docs/             Architecture, report source, presentation script
@@ -71,11 +71,12 @@ output/           Generated PDF and PowerPoint deliverables
 
 ## Demonstration flow
 
-1. Add an eligible donor.
-2. Record a blood unit for that donor.
-3. Create one regular and one emergency request.
-4. Process the next request and show that the emergency request is selected.
-5. Restart the application and confirm that the saved data returns.
+1. Review live stock and the next priority request on the Dashboard.
+2. Add an eligible donor.
+3. Record a blood unit for that donor.
+4. Create one regular and one emergency request.
+5. Process the next request and show that the emergency request is selected.
+6. Restart the application and confirm that the saved data returns.
 
 ## Submission notes
 

@@ -8,9 +8,9 @@ demonstrating the required object-oriented concepts through real behaviour.
 ## Package responsibilities
 
 - `lifeflow.model`: state and single-object rules.
-- `lifeflow.service`: inventory queries and cross-object matching.
+- `lifeflow.service`: inventory queries, matching, validation, and UI-facing operations.
 - `lifeflow.persistence`: text-file mapping only.
-- `lifeflow.ui`: Swing input, tables, messages, and orchestration.
+- `lifeflow.ui`: dashboard, sidebar navigation, data pages, dialogs, and theming.
 - `lifeflow.Main`: application start-up and data loading.
 
 ## UML class diagram
@@ -26,6 +26,7 @@ classDiagram
         -LocalDate lastDonationDate
         +isEligible(LocalDate) boolean
         +recordDonation(LocalDate) void
+        +updateDetails(...) void
     }
     class BloodUnit {
         -String id
@@ -35,6 +36,7 @@ classDiagram
         -LocalDate expiryDate
         -UnitStatus status
         +isAvailable(LocalDate) boolean
+        +updateExpiryDate(LocalDate) void
     }
     class BloodRequest {
         <<abstract>>
@@ -46,6 +48,7 @@ classDiagram
         -RequestStatus status
         +getPriority() int
         +getKind() String
+        +updatePendingDetails(...) void
     }
     class RegularRequest
     class EmergencyRequest
@@ -59,6 +62,7 @@ classDiagram
         +match(BloodRequest, LocalDate) ArrayList~BloodUnit~
     }
     class FileManager
+    class LifeFlowController
     class LifeFlowFrame
 
     BloodRequest <|-- RegularRequest
@@ -70,17 +74,26 @@ classDiagram
     FileManager --> Donor
     FileManager --> BloodUnit
     FileManager --> BloodRequest
-    LifeFlowFrame --> MatchingService
-    LifeFlowFrame --> FileManager
+    LifeFlowController --> MatchingService
+    LifeFlowController --> FileManager
+    LifeFlowFrame --> LifeFlowController
 ```
 
 ## Main data flow
 
 ```text
-Text files -> FileManager -> ArrayLists/BloodInventory -> Swing tables
-Swing form -> model validation -> service simulation -> updated collections
-Updated collections -> FileManager -> text files
+Text files -> FileManager -> LifeFlowController -> dashboard and tables
+Swing dialog -> controller validation -> model/service operation
+Updated collections -> FileManager -> text files -> refresh all five screens
 ```
+
+## UI composition
+
+`LifeFlowFrame` contains the fixed sidebar, a `CardLayout`, and the temporary
+status bar. `DashboardPanel` shows live counts, blood-group availability, quick
+actions, and the next priority request. Donors, inventory, requests, and
+matching each use a focused panel, while `UiTheme` and `UiComponents` keep
+colors, typography, buttons, cards, tables, and status badges consistent.
 
 ## Persistence schemas
 

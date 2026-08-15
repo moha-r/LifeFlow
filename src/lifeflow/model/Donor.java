@@ -36,6 +36,15 @@ public class Donor {
         this.lastDonationDate = donationDate;
     }
 
+    public void updateDetails(String name, int age, double weightKg,
+                              BloodType bloodType, LocalDate lastDonationDate) {
+        this.name = name;
+        this.age = age;
+        this.weightKg = weightKg;
+        this.bloodType = bloodType;
+        this.lastDonationDate = lastDonationDate;
+    }
+
     public String getId() {
         return id;
     }

@@ -54,4 +54,11 @@ public abstract class BloodRequest {
     public void setStatus(RequestStatus status) {
         this.status = status;
     }
+
+    public void updatePendingDetails(String requesterName, BloodType bloodType,
+                                     int quantity) {
+        this.requesterName = requesterName;
+        this.bloodType = bloodType;
+        this.quantity = quantity;
+    }
 }

@@ -7,6 +7,7 @@ import javax.swing.SwingUtilities;
 import javax.swing.UIManager;
 import lifeflow.persistence.FileManager;
 import lifeflow.ui.LifeFlowFrame;
+import lifeflow.ui.UiTheme;
 
 public final class Main {
     private Main() {
@@ -14,7 +15,7 @@ public final class Main {
 
     public static void main(String[] args) {
         SwingUtilities.invokeLater(() -> {
-            useNimbusLookAndFeel();
+            installLookAndFeel();
             FileManager fileManager = new FileManager(Path.of("data"));
             try {
                 LifeFlowFrame frame = new LifeFlowFrame(
@@ -31,16 +32,13 @@ public final class Main {
         });
     }
 
-    private static void useNimbusLookAndFeel() {
-        for (UIManager.LookAndFeelInfo info : UIManager.getInstalledLookAndFeels()) {
-            if ("Nimbus".equals(info.getName())) {
-                try {
-                    UIManager.setLookAndFeel(info.getClassName());
-                } catch (ReflectiveOperationException | javax.swing.UnsupportedLookAndFeelException ignored) {
-                    // The platform default remains available when Nimbus cannot load.
-                }
-                break;
-            }
+    private static void installLookAndFeel() {
+        try {
+            UIManager.setLookAndFeel(UIManager.getCrossPlatformLookAndFeelClassName());
+        } catch (ReflectiveOperationException
+                 | javax.swing.UnsupportedLookAndFeelException ignored) {
+            // The platform default remains available when the cross-platform theme fails.
         }
+        UiTheme.install();
     }
 }

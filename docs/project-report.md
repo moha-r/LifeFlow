@@ -45,6 +45,8 @@ system?
 6. Match only available, non-expired units of the exact requested blood group.
 7. Avoid partial fulfilment when the full requested quantity is unavailable.
 8. Save and restore donors, units, and request subclasses using text files.
+9. Present live operational information through an accessible dashboard.
+10. Allow safe correction of records without breaking linked data.
 
 ## 4. OOP Design and UML
 
@@ -56,9 +58,10 @@ references, so Java selects the correct overridden method at runtime.
 
 Encapsulation is implemented with private fields and controlled accessors.
 `BloodInventory` owns an `ArrayList<BloodUnit>`, while its stock summary uses a
-`HashMap<BloodType, Integer>`. `FileManager` maps the collections to three
-pipe-delimited files. The full UML diagram is provided in `docs/architecture.md`
-and in the generated PDF report.
+`HashMap<BloodType, Integer>`. `LifeFlowController` coordinates validation,
+services, persistence, dashboard counts, and safe editing. `FileManager` maps
+the collections to three pipe-delimited files. The full UML diagram is provided
+in `docs/architecture.md` and in the generated PDF report.
 
 ## 5. Implementation Details
 
@@ -81,11 +84,18 @@ the request becomes `FULFILLED`.
 
 ### Swing interface
 
-The application contains one `JFrame` with Donors, Blood Inventory, Blood
-Requests, and Matching tabs. Tables are read-only and sortable. Forms validate
-required fields, duplicate IDs, numeric values, dates, quantities, and the file
-delimiter. Messages are displayed with `JOptionPane`, while the Matching tab
-shows the selected request and result.
+The application contains one `JFrame` with a fixed sidebar and a `CardLayout`
+for Dashboard, Donors, Blood Inventory, Blood Requests, and Matching. The
+Dashboard shows live counts, eight blood-group stock indicators, the next
+priority request, and quick actions. Searchable, sortable tables occupy the main
+page area, while focused modal dialogs handle addition and safe editing. Brief
+success messages appear in the status bar; `JOptionPane` is reserved for
+startup or persistence failures.
+
+Safe editing protects relationships: IDs never change, used units and fulfilled
+requests are read-only, and a donor's blood group or last donation cannot change
+after units are linked. Available units allow expiry correction, while pending
+requests allow requester, blood group, and quantity corrections.
 
 ### Persistence
 
@@ -107,7 +117,9 @@ libraries. They verify:
 - exact-group matching and full-quantity behaviour;
 - `ArrayList` inventory and `HashMap` counts;
 - text-file round trips and restoration of request subclasses;
-- empty missing files and descriptive malformed-line errors.
+- empty missing files and descriptive malformed-line errors;
+- controller validation, persistence, dashboard counts, and safe-edit rules;
+- headless construction and live refresh of all five Swing panels.
 
 Verified command:
 
@@ -131,8 +143,8 @@ Request R003 (EMERGENCY) needs 2 unit(s) of O_NEG,
 but only 1 is available. The request remains pending.
 ```
 
-The generated PDF also includes screenshots of the Blood Requests and Matching
-tabs using fictional demonstration data.
+The generated PDF also includes screenshots of the modern Dashboard and
+Matching screen using fictional demonstration data.
 
 ## 7. Discussion and Limitations
 

@@ -11,6 +11,8 @@ public final class AllTests {
         InventoryTests.run();
         MatchingServiceTests.run();
         FileManagerTests.run();
+        LifeFlowControllerTests.run();
+        ModernUiTests.run();
         System.out.println("All tests passed.");
     }
 }
