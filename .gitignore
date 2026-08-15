@@ -2,5 +2,6 @@ out/
 tmp/
 .serena/
 .worktrees/
+.superpowers/
 .DS_Store
 data/*.txt
