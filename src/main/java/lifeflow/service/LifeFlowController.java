@@ -5,6 +5,7 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 import lifeflow.model.BloodRequest;
 import lifeflow.model.BloodType;
@@ -250,6 +251,22 @@ public final class LifeFlowController implements AutoCloseable {
         return inventoryFrom(state.getUnits()).getAvailableUnits(type, date);
     }
 
+    public String getNextUnitId() {
+        ArrayList<String> ids = new ArrayList<>();
+        for (BloodUnit unit : state.getUnits()) {
+            ids.add(unit.getId());
+        }
+        return nextId("U", ids);
+    }
+
+    public String getNextRequestId() {
+        ArrayList<String> ids = new ArrayList<>();
+        for (BloodRequest request : state.getRequests()) {
+            ids.add(request.getId());
+        }
+        return nextId("R", ids);
+    }
+
     public StorageInfo getStorageInfo() {
         return store.getStorageInfo();
     }
@@ -300,6 +317,29 @@ public final class LifeFlowController implements AutoCloseable {
 
     private boolean hasUnitsForDonor(List<BloodUnit> units, String donorId) {
         return units.stream().anyMatch(unit -> unit.getDonorId().equalsIgnoreCase(donorId));
+    }
+
+    private String nextId(String prefix, List<String> ids) {
+        long highest = 0;
+        for (String id : ids) {
+            if (id == null || id.length() < 2
+                    || !id.regionMatches(true, 0, prefix, 0, prefix.length())) {
+                continue;
+            }
+            String number = id.substring(prefix.length());
+            if (!number.chars().allMatch(Character::isDigit)) {
+                continue;
+            }
+            try {
+                highest = Math.max(highest, Long.parseLong(number));
+            } catch (NumberFormatException ignored) {
+                // An unusually large custom ID does not affect normal numbering.
+            }
+        }
+        if (highest == Long.MAX_VALUE) {
+            throw new IllegalStateException("No more automatic IDs are available.");
+        }
+        return String.format(Locale.ROOT, "%s%03d", prefix, highest + 1);
     }
 
     private void validatePersonDetails(String name, int age, double weight) {

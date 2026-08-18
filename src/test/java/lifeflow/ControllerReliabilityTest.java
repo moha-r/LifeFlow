@@ -172,6 +172,22 @@ final class ControllerReliabilityTest {
                 () -> controller.updateBloodUnitExpiry("U1", TODAY.plusDays(5)));
     }
 
+    @Test
+    void generatesTheNextUnitAndRequestIdsFromSavedState() throws Exception {
+        RecordingStore store = new RecordingStore();
+        LifeFlowController controller = new LifeFlowController(new LifeFlowState(), store);
+        assertEquals("U001", controller.getNextUnitId());
+        assertEquals("R001", controller.getNextRequestId());
+
+        LocalDate donation = TODAY.minusDays(1);
+        controller.addDonor("D1", "Aisha", 25, 55.0, BloodType.A_POS, null);
+        controller.addBloodUnit("u009", "D1", donation, TODAY.plusDays(20));
+        controller.addRequest("r012", "Ward", BloodType.A_POS, 1, false);
+
+        assertEquals("U010", controller.getNextUnitId());
+        assertEquals("R013", controller.getNextRequestId());
+    }
+
     private static final class RecordingStore implements LifeFlowStore {
         private LifeFlowState state = new LifeFlowState();
         private int saveCount;

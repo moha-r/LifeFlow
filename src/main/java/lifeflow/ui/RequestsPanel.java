@@ -191,14 +191,15 @@ public final class RequestsPanel extends JPanel {
         Window owner = SwingUtilities.getWindowAncestor(this);
         JDialog dialog = new JDialog(owner, editing ? "Edit request" : "New blood request",
                 Dialog.ModalityType.APPLICATION_MODAL);
-        JTextField id = new JTextField(editing ? request.getId() : "");
+        JTextField id = new JTextField(editing ? request.getId()
+                : controller.getNextRequestId());
+        id.setEditable(false);
         JTextField requester = new JTextField(editing ? request.getRequesterName() : "");
         JComboBox<BloodType> type = new JComboBox<>(BloodType.values());
         JTextField quantity = new JTextField(editing
                 ? Integer.toString(request.getQuantity()) : "1");
         JComboBox<String> kind = new JComboBox<>(new String[]{"REGULAR", "EMERGENCY"});
         if (editing) {
-            id.setEditable(false);
             type.setSelectedItem(request.getBloodType());
             kind.setSelectedItem(request.getKind());
             kind.setEnabled(false);
@@ -210,7 +211,7 @@ public final class RequestsPanel extends JPanel {
         UiComponents.styleInput(kind);
         JPanel form = new JPanel(new GridBagLayout());
         form.setOpaque(false);
-        addFormRow(form, 0, "Request ID", id);
+        addFormRow(form, 0, editing ? "Request ID" : "Request ID (auto)", id);
         addFormRow(form, 1, "Requester", requester);
         addFormRow(form, 2, "Blood type", type);
         addFormRow(form, 3, "Quantity", quantity);

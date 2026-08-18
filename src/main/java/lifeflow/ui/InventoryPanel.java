@@ -151,7 +151,8 @@ public final class InventoryPanel extends JPanel {
         Window owner = SwingUtilities.getWindowAncestor(this);
         JDialog dialog = new JDialog(owner, "Add blood unit",
                 Dialog.ModalityType.APPLICATION_MODAL);
-        JTextField id = new JTextField();
+        JTextField id = new JTextField(controller.getNextUnitId());
+        id.setEditable(false);
         JComboBox<DonorOption> donor = new JComboBox<>();
         for (Donor item : controller.getDonors()) {
             donor.addItem(new DonorOption(item.getId(), item.getName()));
@@ -167,13 +168,12 @@ public final class InventoryPanel extends JPanel {
         JButton cancel = UiComponents.secondaryButton("Cancel");
         JButton save = UiComponents.primaryButton("Add unit");
         JPanel form = formPanel();
-        addFormRow(form, 0, "Unit ID", id);
+        addFormRow(form, 0, "Unit ID (auto)", id);
         addFormRow(form, 1, "Donor", donor);
         addFormRow(form, 2, "Donation date", donation);
         addFormRow(form, 3, "Expiry date", expiry);
         Runnable validate = () -> updateAddFormState(id, donor, donation, expiry,
                 error, save);
-        installValidation(id, validate);
         installValidation(donation, validate);
         installValidation(expiry, validate);
         donor.addActionListener(event -> validate.run());
