@@ -19,7 +19,7 @@ final class LifeFlowControllerTests {
         addsEligibleUnitAndUpdatesCounts();
         rejectsUnitForIneligibleDonor();
         updatesDonorAndProtectsLinkedBloodData();
-        updatesOnlyAvailableUnitExpiry();
+        correctsOnlyUnusedUnitDonationDate();
         managesRequestsDashboardCountsAndMatching();
         protectsFulfilledRequestsFromEditing();
     }
@@ -60,8 +60,7 @@ final class LifeFlowControllerTests {
         controller.addDonor("D1", "Eligible Donor", 28, 60.0,
                 BloodType.O_NEG, null);
 
-        controller.addBloodUnit("U1", "D1", donationDate,
-                donationDate.plusDays(35));
+        controller.addBloodUnit("U1", "D1", donationDate);
 
         assert controller.getUnits().size() == 1;
         assert controller.getAvailableUnitCount(LocalDate.now()) == 1;
@@ -76,8 +75,7 @@ final class LifeFlowControllerTests {
 
         boolean rejected = false;
         try {
-            controller.addBloodUnit("U1", "D1", LocalDate.now(),
-                    LocalDate.now().plusDays(30));
+            controller.addBloodUnit("U1", "D1", LocalDate.now());
         } catch (IllegalArgumentException exception) {
             rejected = exception.getMessage().contains("between 18 and 60");
         }
@@ -98,7 +96,7 @@ final class LifeFlowControllerTests {
         LocalDate donation = LocalDate.now().minusDays(1);
         controller.updateDonor("D1", "Updated Name", 26, 58.0,
                 BloodType.B_POS, null);
-        controller.addBloodUnit("U1", "D1", donation, donation.plusDays(30));
+        controller.addBloodUnit("U1", "D1", donation);
 
         boolean rejected = false;
         try {
@@ -110,21 +108,22 @@ final class LifeFlowControllerTests {
         assert rejected : "A donor blood type cannot change after units exist";
     }
 
-    private static void updatesOnlyAvailableUnitExpiry() throws IOException {
+    private static void correctsOnlyUnusedUnitDonationDate() throws IOException {
         LifeFlowController controller = emptyController();
         LocalDate donation = LocalDate.now().minusDays(1);
         controller.addDonor("D1", "Unit Donor", 30, 65.0, BloodType.A_NEG, null);
-        controller.addBloodUnit("U1", "D1", donation, donation.plusDays(20));
+        controller.addBloodUnit("U1", "D1", donation);
 
-        LocalDate newExpiry = donation.plusDays(35);
-        controller.updateBloodUnitExpiry("U1", newExpiry);
-        assert controller.getUnits().get(0).getExpiryDate().equals(newExpiry);
+        LocalDate correctedDonation = donation.minusDays(1);
+        controller.updateUnusedBloodUnitDonationDate("U1", correctedDonation);
+        assert controller.getUnits().get(0).getExpiryDate()
+                .equals(correctedDonation.plusDays(35));
 
         controller.addRequest("R1", "Ward", BloodType.A_NEG, 1, false);
         controller.processNextRequest(LocalDate.now());
         boolean rejected = false;
         try {
-            controller.updateBloodUnitExpiry("U1", donation.plusDays(40));
+            controller.updateUnusedBloodUnitDonationDate("U1", donation.minusDays(2));
         } catch (IllegalArgumentException exception) {
             rejected = exception.getMessage().contains("used");
         }
@@ -148,7 +147,7 @@ final class LifeFlowControllerTests {
         LocalDate donation = LocalDate.now().minusDays(1);
         controller.addDonor("D1", "Emergency Donor", 30, 60.0,
                 BloodType.O_NEG, null);
-        controller.addBloodUnit("U1", "D1", donation, donation.plusDays(30));
+        controller.addBloodUnit("U1", "D1", donation);
 
         var result = controller.processNextRequest(LocalDate.now());
         assert result.matchedUnits().size() == 1;
@@ -164,7 +163,7 @@ final class LifeFlowControllerTests {
         LocalDate donation = LocalDate.now().minusDays(1);
         controller.addDonor("D1", "Request Donor", 30, 60.0,
                 BloodType.A_POS, null);
-        controller.addBloodUnit("U1", "D1", donation, donation.plusDays(30));
+        controller.addBloodUnit("U1", "D1", donation);
         controller.processNextRequest(LocalDate.now());
 
         boolean rejected = false;

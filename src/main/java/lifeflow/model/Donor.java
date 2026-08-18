@@ -2,65 +2,33 @@ package lifeflow.model;
 
 import java.time.LocalDate;
 
-/** Stores a donor and applies the simplified project eligibility rules. */
+/** Stores one donor profile, not an internal donation event. */
 public class Donor {
     private String id;
     private String name;
     private int age;
     private double weightKg;
     private BloodType bloodType;
-    private LocalDate lastDonationDate;
+    private LocalDate externalLastDonationDate;
 
     public Donor(String id, String name, int age, double weightKg,
-                 BloodType bloodType, LocalDate lastDonationDate) {
+                 BloodType bloodType, LocalDate externalLastDonationDate) {
         this.id = id;
         this.name = name;
         this.age = age;
         this.weightKg = weightKg;
         this.bloodType = bloodType;
-        this.lastDonationDate = lastDonationDate;
-    }
-
-    public boolean isEligible(LocalDate donationDate) {
-        return checkEligibility(donationDate).eligible();
-    }
-
-    public EligibilityResult checkEligibility(LocalDate donationDate) {
-        if (donationDate == null || donationDate.isAfter(LocalDate.now())) {
-            return new EligibilityResult(false, EligibilityReason.FUTURE_DATE, null,
-                    "Donation date cannot be in the future.");
-        }
-        if (age < 18 || age > 60) {
-            return new EligibilityResult(false, EligibilityReason.AGE_OUT_OF_RANGE,
-                    null, "Donor age must be between 18 and 60.");
-        }
-        if (weightKg < 45.0) {
-            return new EligibilityResult(false, EligibilityReason.UNDERWEIGHT, null,
-                    "Donor weight must be at least 45 kg.");
-        }
-        if (lastDonationDate != null) {
-            LocalDate nextDate = lastDonationDate.plusMonths(3);
-            if (donationDate.isBefore(nextDate)) {
-                return new EligibilityResult(false, EligibilityReason.WAITING_PERIOD,
-                        nextDate, "Last donation: " + lastDonationDate
-                        + ". Next eligible date: " + nextDate + ".");
-            }
-        }
-        return new EligibilityResult(true, EligibilityReason.ELIGIBLE, null,
-                "Donor is eligible on this date.");
-    }
-
-    public void recordDonation(LocalDate donationDate) {
-        this.lastDonationDate = donationDate;
+        this.externalLastDonationDate = externalLastDonationDate;
     }
 
     public void updateDetails(String name, int age, double weightKg,
-                              BloodType bloodType, LocalDate lastDonationDate) {
+                              BloodType bloodType,
+                              LocalDate externalLastDonationDate) {
         this.name = name;
         this.age = age;
         this.weightKg = weightKg;
         this.bloodType = bloodType;
-        this.lastDonationDate = lastDonationDate;
+        this.externalLastDonationDate = externalLastDonationDate;
     }
 
     public String getId() {
@@ -99,7 +67,7 @@ public class Donor {
         this.bloodType = bloodType;
     }
 
-    public LocalDate getLastDonationDate() {
-        return lastDonationDate;
+    public LocalDate getExternalLastDonationDate() {
+        return externalLastDonationDate;
     }
 }

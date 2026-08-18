@@ -1,5 +1,6 @@
 package lifeflow.persistence;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.MapperFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
@@ -17,12 +18,16 @@ import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import lifeflow.model.BloodRequest;
 import lifeflow.model.BloodType;
 import lifeflow.model.BloodUnit;
@@ -34,10 +39,12 @@ import lifeflow.model.RegularRequest;
 import lifeflow.model.RequestStatus;
 import lifeflow.model.UnitStatus;
 import lifeflow.service.DataValidator;
+import lifeflow.service.DonationPolicy;
 
 /** Jackson-backed, checksum-verified, atomic local snapshot storage. */
 public final class JsonLifeFlowStore implements LifeFlowStore {
-    private static final int FORMAT_VERSION = 1;
+    private static final int LEGACY_FORMAT_VERSION = 1;
+    private static final int FORMAT_VERSION = 2;
     private static final DateTimeFormatter RECOVERY_TIME =
             DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss-SSS");
 
@@ -46,6 +53,7 @@ public final class JsonLifeFlowStore implements LifeFlowStore {
     private final Path backupFile;
     private final Path previousBackupFile;
     private final ObjectMapper mapper;
+    private final Clock clock;
     private final FileChannel lockChannel;
     private final FileLock lock;
     private boolean backupCurrent;
@@ -53,6 +61,11 @@ public final class JsonLifeFlowStore implements LifeFlowStore {
     private String detail = "Storage ready";
 
     public JsonLifeFlowStore(Path directory) throws IOException {
+        this(directory, Clock.systemDefaultZone());
+    }
+
+    public JsonLifeFlowStore(Path directory, Clock clock) throws IOException {
+        this.clock = Objects.requireNonNull(clock, "clock");
         this.directory = directory.toAbsolutePath().normalize();
         dataFile = this.directory.resolve("lifeflow.json");
         backupFile = this.directory.resolve("backups/lifeflow-backup.json");
@@ -96,7 +109,14 @@ public final class JsonLifeFlowStore implements LifeFlowStore {
             return empty;
         }
         try {
-            LifeFlowState state = readVerified(dataFile);
+            int version = readFormatVersion(dataFile);
+            LifeFlowState state;
+            if (version == LEGACY_FORMAT_VERSION) {
+                state = migratePrimaryFromVersionOne();
+                recoveryRequired = false;
+                return state;
+            }
+            state = readVersionTwoVerified(dataFile);
             backupCurrent = backupMatchesPrimary();
             recoveryRequired = false;
             detail = backupCurrent ? "Storage and backup ready"
@@ -104,49 +124,20 @@ public final class JsonLifeFlowStore implements LifeFlowStore {
             return state;
         } catch (IOException exception) {
             recoveryRequired = true;
-            detail = "Recovery required";
+            if (!detail.startsWith("Migration")) {
+                detail = "Recovery required";
+            }
             throw exception;
         }
     }
 
     @Override
     public void save(LifeFlowState state) throws IOException {
-        try {
-            DataValidator.validate(state);
-        } catch (IllegalArgumentException exception) {
-            throw new IOException("LifeFlow refused to save invalid data: "
-                    + exception.getMessage(), exception);
-        }
-
-        Envelope envelope = envelope(state);
-        byte[] bytes = mapper.writeValueAsBytes(envelope);
-        writeVerifiedAtomically(dataFile, bytes);
+        validateForStorage(state);
+        byte[] bytes = mapper.writeValueAsBytes(envelope(state));
+        writeVersionTwoAtomically(dataFile, bytes);
         recoveryRequired = false;
-
-        try {
-            Files.createDirectories(backupFile.getParent());
-        } catch (IOException exception) {
-            backupCurrent = false;
-            detail = "Data saved; backup needs retry";
-            return;
-        }
-        if (Files.exists(backupFile)) {
-            try {
-                readVerified(backupFile);
-                writeVerifiedAtomically(previousBackupFile,
-                        Files.readAllBytes(backupFile));
-            } catch (IOException ignored) {
-                // Keep an existing valid previous backup when current is damaged.
-            }
-        }
-        try {
-            writeVerifiedAtomically(backupFile, bytes);
-            backupCurrent = true;
-            detail = "Storage and backup ready";
-        } catch (IOException exception) {
-            backupCurrent = false;
-            detail = "Data saved; backup needs retry";
-        }
+        updateBackups(bytes);
     }
 
     public LifeFlowState restoreLatestBackup() throws IOException {
@@ -154,61 +145,29 @@ public final class JsonLifeFlowStore implements LifeFlowStore {
             throw new IOException("Recovery is not required for the current data file.");
         }
         LifeFlowState restored;
-        byte[] bytes;
         try {
-            restored = readVerified(backupFile);
-            bytes = Files.readAllBytes(backupFile);
+            restored = readAnyVerified(backupFile);
         } catch (IOException currentFailure) {
-            restored = readVerified(previousBackupFile);
-            bytes = Files.readAllBytes(previousBackupFile);
+            restored = readAnyVerified(previousBackupFile);
         }
-
-        Path temporary = writeVerifiedTemporary(dataFile, bytes);
+        byte[] bytes = mapper.writeValueAsBytes(envelope(restored));
+        Path temporary = writeVersionTwoTemporary(dataFile, bytes);
         try {
             if (Files.exists(dataFile)) {
                 Path recoveryDirectory = directory.resolve("recovery");
                 Files.createDirectories(recoveryDirectory);
-                Path archived = uniqueRecoveryPath(recoveryDirectory);
-                Files.copy(dataFile, archived);
+                Files.copy(dataFile, uniqueRecoveryPath(recoveryDirectory,
+                        "lifeflow-corrupt-"));
             }
             replaceAtomically(temporary, dataFile);
         } finally {
             Files.deleteIfExists(temporary);
         }
-        try {
-            writeVerifiedAtomically(backupFile, bytes);
-            backupCurrent = true;
-            detail = "Storage restored from backup";
-        } catch (IOException exception) {
-            backupCurrent = false;
-            detail = "Data restored; backup needs retry";
-        }
         recoveryRequired = false;
+        updateBackups(bytes);
+        detail = backupCurrent ? "Storage restored from backup"
+                : "Data restored; backup needs retry";
         return restored;
-    }
-
-    private Path uniqueRecoveryPath(Path recoveryDirectory) {
-        String base = "lifeflow-corrupt-"
-                + LocalDateTime.now().format(RECOVERY_TIME);
-        Path candidate = recoveryDirectory.resolve(base + ".json");
-        int suffix = 1;
-        while (Files.exists(candidate)) {
-            candidate = recoveryDirectory.resolve(base + "-" + suffix + ".json");
-            suffix++;
-        }
-        return candidate;
-    }
-
-    private boolean backupMatchesPrimary() {
-        if (Files.notExists(backupFile)) {
-            return false;
-        }
-        try {
-            readVerified(backupFile);
-            return Files.mismatch(dataFile, backupFile) == -1;
-        } catch (IOException exception) {
-            return false;
-        }
     }
 
     @Override
@@ -225,61 +184,115 @@ public final class JsonLifeFlowStore implements LifeFlowStore {
         }
     }
 
-    private void writeVerifiedAtomically(Path target, byte[] bytes) throws IOException {
-        Path temporary = writeVerifiedTemporary(target, bytes);
+    private LifeFlowState migratePrimaryFromVersionOne() throws IOException {
+        LegacyEnvelope legacy = readVersionOneEnvelope(dataFile);
+        Path recoveryDirectory = directory.resolve("recovery");
+        Files.createDirectories(recoveryDirectory);
+        Files.copy(dataFile, uniqueRecoveryPath(recoveryDirectory,
+                "lifeflow-v1-before-migration-"));
         try {
-            replaceAtomically(temporary, target);
-        } finally {
-            Files.deleteIfExists(temporary);
+            LifeFlowState migrated = fromLegacy(legacy.revision, legacy.data);
+            validateForStorage(migrated);
+            byte[] bytes = mapper.writeValueAsBytes(envelope(migrated));
+            writeVersionTwoAtomically(dataFile, bytes);
+            updateBackups(bytes);
+            detail = backupCurrent
+                    ? "Migrated Version 1 data to Version 2; backup ready"
+                    : "Migrated Version 1 data to Version 2; backup needs retry";
+            return migrated;
+        } catch (IllegalArgumentException | IOException exception) {
+            detail = "Migration failed; original Version 1 file preserved";
+            throw new IOException("Version 1 data could not be migrated: "
+                    + exception.getMessage(), exception);
         }
     }
 
-    private Path writeVerifiedTemporary(Path target, byte[] bytes) throws IOException {
-        Files.createDirectories(target.getParent());
-        Path temporary = target.resolveSibling(target.getFileName() + ".tmp");
+    private Path uniqueRecoveryPath(Path recoveryDirectory, String prefix) {
+        String base = prefix + LocalDateTime.now(clock).format(RECOVERY_TIME);
+        Path candidate = recoveryDirectory.resolve(base + ".json");
+        int suffix = 1;
+        while (Files.exists(candidate)) {
+            candidate = recoveryDirectory.resolve(base + "-" + suffix + ".json");
+            suffix++;
+        }
+        return candidate;
+    }
+
+    private void updateBackups(byte[] primaryBytes) {
         try {
-            try (FileChannel channel = FileChannel.open(temporary,
-                    StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING,
-                    StandardOpenOption.WRITE)) {
-                channel.write(ByteBuffer.wrap(bytes));
-                channel.force(true);
+            Files.createDirectories(backupFile.getParent());
+            if (Files.exists(backupFile)) {
+                try {
+                    readAnyVerified(backupFile);
+                    writeRawAtomically(previousBackupFile,
+                            Files.readAllBytes(backupFile));
+                } catch (IOException ignored) {
+                    // Preserve an existing verified previous backup.
+                }
             }
-            readVerified(temporary);
-            return temporary;
+            writeVersionTwoAtomically(backupFile, primaryBytes);
+            backupCurrent = true;
+            detail = "Storage and backup ready";
         } catch (IOException exception) {
-            Files.deleteIfExists(temporary);
-            throw exception;
+            backupCurrent = false;
+            detail = "Data saved; backup needs retry";
         }
     }
 
-    private void replaceAtomically(Path temporary, Path target) throws IOException {
+    private boolean backupMatchesPrimary() {
+        if (Files.notExists(backupFile)) {
+            return false;
+        }
         try {
-            Files.move(temporary, target, StandardCopyOption.ATOMIC_MOVE,
-                    StandardCopyOption.REPLACE_EXISTING);
-        } catch (AtomicMoveNotSupportedException exception) {
-            throw new IOException("Atomic file replacement is not supported for "
-                    + target + ". The previous data was preserved.", exception);
+            readVersionTwoVerified(backupFile);
+            return Files.mismatch(dataFile, backupFile) == -1;
+        } catch (IOException exception) {
+            return false;
         }
     }
 
-    private LifeFlowState readVerified(Path file) throws IOException {
+    private int readFormatVersion(Path file) throws IOException {
         if (Files.notExists(file)) {
             throw new IOException("Storage file is missing: " + file);
         }
+        JsonNode root = mapper.readTree(file.toFile());
+        JsonNode version = root == null ? null : root.get("formatVersion");
+        if (version == null || !version.canConvertToInt()) {
+            throw new IOException("JSON storage format version is missing.");
+        }
+        return version.asInt();
+    }
+
+    private LifeFlowState readAnyVerified(Path file) throws IOException {
+        int version = readFormatVersion(file);
+        if (version == FORMAT_VERSION) {
+            return readVersionTwoVerified(file);
+        }
+        if (version == LEGACY_FORMAT_VERSION) {
+            LegacyEnvelope legacy = readVersionOneEnvelope(file);
+            try {
+                LifeFlowState state = fromLegacy(legacy.revision, legacy.data);
+                validateForStorage(state);
+                return state;
+            } catch (IllegalArgumentException exception) {
+                throw new IOException("Legacy backup contains invalid LifeFlow data: "
+                        + exception.getMessage(), exception);
+            }
+        }
+        throw new IOException("Unsupported JSON storage format version: " + version);
+    }
+
+    private LifeFlowState readVersionTwoVerified(Path file) throws IOException {
         try {
             Envelope envelope = mapper.readValue(file.toFile(), Envelope.class);
             if (envelope.formatVersion != FORMAT_VERSION || envelope.data == null
                     || envelope.revision < 0 || envelope.checksum == null) {
                 throw new IOException("Unsupported or incomplete JSON storage file.");
             }
-            String actual = checksum(envelope.formatVersion, envelope.revision,
-                    envelope.data);
-            if (!MessageDigest.isEqual(actual.getBytes(StandardCharsets.UTF_8),
-                    envelope.checksum.getBytes(StandardCharsets.UTF_8))) {
-                throw new IOException("JSON storage checksum does not match.");
-            }
+            verifyChecksum(envelope.checksum,
+                    checksum(envelope.formatVersion, envelope.revision, envelope.data));
             LifeFlowState state = fromPayload(envelope.revision, envelope.data);
-            DataValidator.validate(state);
+            validateForStorage(state);
             return state;
         } catch (IllegalArgumentException exception) {
             throw new IOException("JSON storage contains invalid LifeFlow data: "
@@ -287,11 +300,45 @@ public final class JsonLifeFlowStore implements LifeFlowStore {
         }
     }
 
+    private LegacyEnvelope readVersionOneEnvelope(Path file) throws IOException {
+        try {
+            LegacyEnvelope envelope = mapper.readValue(file.toFile(), LegacyEnvelope.class);
+            if (envelope.formatVersion != LEGACY_FORMAT_VERSION
+                    || envelope.data == null || envelope.revision < 0
+                    || envelope.checksum == null) {
+                throw new IOException("Unsupported or incomplete Version 1 JSON file.");
+            }
+            verifyChecksum(envelope.checksum, legacyChecksum(envelope.formatVersion,
+                    envelope.revision, envelope.data));
+            return envelope;
+        } catch (IllegalArgumentException exception) {
+            throw new IOException("Version 1 JSON data is invalid: "
+                    + exception.getMessage(), exception);
+        }
+    }
+
+    private void validateForStorage(LifeFlowState state) throws IOException {
+        try {
+            DataValidator.validate(state, LocalDate.now(clock));
+        } catch (IllegalArgumentException exception) {
+            throw new IOException("LifeFlow refused invalid data: "
+                    + exception.getMessage(), exception);
+        }
+    }
+
+    private static void verifyChecksum(String expected, String actual)
+            throws IOException {
+        if (!MessageDigest.isEqual(actual.getBytes(StandardCharsets.UTF_8),
+                expected.getBytes(StandardCharsets.UTF_8))) {
+            throw new IOException("JSON storage checksum does not match.");
+        }
+    }
+
     private Envelope envelope(LifeFlowState state) throws IOException {
         Envelope envelope = new Envelope();
         envelope.formatVersion = FORMAT_VERSION;
         envelope.revision = state.getRevision();
-        envelope.savedAt = LocalDateTime.now().toString();
+        envelope.savedAt = LocalDateTime.now(clock).toString();
         envelope.data = toPayload(state);
         envelope.checksum = checksum(envelope.formatVersion, envelope.revision,
                 envelope.data);
@@ -300,16 +347,83 @@ public final class JsonLifeFlowStore implements LifeFlowStore {
 
     private String checksum(int formatVersion, long revision, Payload payload)
             throws IOException {
+        ChecksumContent content = new ChecksumContent();
+        content.formatVersion = formatVersion;
+        content.revision = revision;
+        content.data = payload;
+        return digest(content);
+    }
+
+    private String legacyChecksum(int formatVersion, long revision,
+                                  LegacyPayload payload) throws IOException {
+        LegacyChecksumContent content = new LegacyChecksumContent();
+        content.formatVersion = formatVersion;
+        content.revision = revision;
+        content.data = payload;
+        return digest(content);
+    }
+
+    private String digest(Object content) throws IOException {
         try {
-            ChecksumContent content = new ChecksumContent();
-            content.formatVersion = formatVersion;
-            content.revision = revision;
-            content.data = payload;
-            byte[] canonical = mapper.writeValueAsBytes(content);
-            return HexFormat.of().formatHex(
-                    MessageDigest.getInstance("SHA-256").digest(canonical));
+            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
+                    .digest(mapper.writeValueAsBytes(content)));
         } catch (NoSuchAlgorithmException exception) {
             throw new IOException("SHA-256 is not available.", exception);
+        }
+    }
+
+    private void writeVersionTwoAtomically(Path target, byte[] bytes)
+            throws IOException {
+        Path temporary = writeVersionTwoTemporary(target, bytes);
+        try {
+            replaceAtomically(temporary, target);
+        } finally {
+            Files.deleteIfExists(temporary);
+        }
+    }
+
+    private Path writeVersionTwoTemporary(Path target, byte[] bytes)
+            throws IOException {
+        Path temporary = writeRawTemporary(target, bytes);
+        try {
+            readVersionTwoVerified(temporary);
+            return temporary;
+        } catch (IOException exception) {
+            Files.deleteIfExists(temporary);
+            throw exception;
+        }
+    }
+
+    private void writeRawAtomically(Path target, byte[] bytes) throws IOException {
+        Path temporary = writeRawTemporary(target, bytes);
+        try {
+            readAnyVerified(temporary);
+            replaceAtomically(temporary, target);
+        } finally {
+            Files.deleteIfExists(temporary);
+        }
+    }
+
+    private Path writeRawTemporary(Path target, byte[] bytes) throws IOException {
+        Files.createDirectories(target.getParent());
+        Path temporary = target.resolveSibling(target.getFileName() + ".tmp");
+        try (FileChannel channel = FileChannel.open(temporary,
+                StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING,
+                StandardOpenOption.WRITE)) {
+            channel.write(ByteBuffer.wrap(bytes));
+            channel.force(true);
+        }
+        return temporary;
+    }
+
+    private static void replaceAtomically(Path temporary, Path target)
+            throws IOException {
+        try {
+            Files.move(temporary, target, StandardCopyOption.ATOMIC_MOVE,
+                    StandardCopyOption.REPLACE_EXISTING);
+        } catch (AtomicMoveNotSupportedException exception) {
+            throw new IOException("Atomic file replacement is not supported for "
+                    + target + ". The previous data was preserved.", exception);
         }
     }
 
@@ -322,9 +436,18 @@ public final class JsonLifeFlowStore implements LifeFlowStore {
             data.age = donor.getAge();
             data.weightKg = donor.getWeightKg();
             data.bloodType = donor.getBloodType().name();
-            data.lastDonationDate = date(donor.getLastDonationDate());
+            data.externalLastDonationDate = date(
+                    donor.getExternalLastDonationDate());
             payload.donors.add(data);
         }
+        copyUnitsToPayload(state, payload.bloodUnits);
+        copyRequestsToPayload(state, payload.requests);
+        copyFulfilmentsToPayload(state, payload.fulfilments);
+        return payload;
+    }
+
+    private static void copyUnitsToPayload(LifeFlowState state,
+                                           List<UnitData> output) {
         for (BloodUnit unit : state.getUnits()) {
             UnitData data = new UnitData();
             data.id = unit.getId();
@@ -333,8 +456,12 @@ public final class JsonLifeFlowStore implements LifeFlowStore {
             data.donationDate = date(unit.getDonationDate());
             data.expiryDate = date(unit.getExpiryDate());
             data.status = unit.getStatus().name();
-            payload.bloodUnits.add(data);
+            output.add(data);
         }
+    }
+
+    private static void copyRequestsToPayload(LifeFlowState state,
+                                              List<RequestData> output) {
         for (BloodRequest request : state.getRequests()) {
             RequestData data = new RequestData();
             data.id = request.getId();
@@ -344,33 +471,73 @@ public final class JsonLifeFlowStore implements LifeFlowStore {
             data.quantity = request.getQuantity();
             data.requestDate = date(request.getRequestDate());
             data.status = request.getStatus().name();
-            payload.requests.add(data);
+            output.add(data);
         }
+    }
+
+    private static void copyFulfilmentsToPayload(
+            LifeFlowState state, List<FulfilmentData> output) {
         for (FulfilmentRecord record : state.getFulfilments()) {
             FulfilmentData data = new FulfilmentData();
             data.requestId = record.requestId();
             data.processedDate = date(record.processedDate());
             data.unitIds.addAll(record.unitIds());
-            payload.fulfilments.add(data);
+            output.add(data);
         }
-        return payload;
     }
 
     private static LifeFlowState fromPayload(long revision, Payload payload) {
         ArrayList<Donor> donors = new ArrayList<>();
         for (DonorData data : safe(payload.donors)) {
             donors.add(new Donor(data.id, data.name, data.age, data.weightKg,
-                    BloodType.valueOf(data.bloodType), parseDate(data.lastDonationDate)));
-        }
-        ArrayList<BloodUnit> units = new ArrayList<>();
-        for (UnitData data : safe(payload.bloodUnits)) {
-            units.add(new BloodUnit(data.id, data.donorId,
                     BloodType.valueOf(data.bloodType),
-                    LocalDate.parse(data.donationDate),
-                    LocalDate.parse(data.expiryDate), UnitStatus.valueOf(data.status)));
+                    parseDate(data.externalLastDonationDate)));
+        }
+        return stateFromParts(revision, donors, safe(payload.bloodUnits),
+                safe(payload.requests), safe(payload.fulfilments), false);
+    }
+
+    private static LifeFlowState fromLegacy(long revision, LegacyPayload payload) {
+        List<UnitData> unitData = safe(payload.bloodUnits);
+        Map<String, LocalDate> latestByDonor = new HashMap<>();
+        for (UnitData unit : unitData) {
+            LocalDate donation = LocalDate.parse(unit.donationDate);
+            latestByDonor.merge(unit.donorId.toLowerCase(java.util.Locale.ROOT),
+                    donation, (first, second) -> first.isAfter(second) ? first : second);
+        }
+        ArrayList<Donor> donors = new ArrayList<>();
+        for (LegacyDonorData data : safe(payload.donors)) {
+            LocalDate legacyDate = parseDate(data.lastDonationDate);
+            LocalDate latest = latestByDonor.get(
+                    data.id.toLowerCase(java.util.Locale.ROOT));
+            LocalDate external = legacyDate != null && legacyDate.equals(latest)
+                    ? null : legacyDate;
+            donors.add(new Donor(data.id, data.name, data.age, data.weightKg,
+                    BloodType.valueOf(data.bloodType), external));
+        }
+        return stateFromParts(revision, donors, unitData, safe(payload.requests),
+                safe(payload.fulfilments), true);
+    }
+
+    private static LifeFlowState stateFromParts(
+            long revision, ArrayList<Donor> donors, List<UnitData> unitData,
+            List<RequestData> requestData, List<FulfilmentData> fulfilmentData,
+            boolean normaliseLegacyExpiry) {
+        ArrayList<BloodUnit> units = new ArrayList<>();
+        for (UnitData data : unitData) {
+            LocalDate donation = LocalDate.parse(data.donationDate);
+            LocalDate expiry = LocalDate.parse(data.expiryDate);
+            LocalDate maximum = donation.plusDays(
+                    DonationPolicy.UNIT_SHELF_LIFE_DAYS);
+            if (normaliseLegacyExpiry && expiry.isAfter(maximum)) {
+                expiry = maximum;
+            }
+            units.add(new BloodUnit(data.id, data.donorId,
+                    BloodType.valueOf(data.bloodType), donation, expiry,
+                    UnitStatus.valueOf(data.status)));
         }
         ArrayList<BloodRequest> requests = new ArrayList<>();
-        for (RequestData data : safe(payload.requests)) {
+        for (RequestData data : requestData) {
             BloodRequest request;
             if ("EMERGENCY".equals(data.kind)) {
                 request = new EmergencyRequest(data.id, data.requesterName,
@@ -388,7 +555,7 @@ public final class JsonLifeFlowStore implements LifeFlowStore {
             requests.add(request);
         }
         ArrayList<FulfilmentRecord> fulfilments = new ArrayList<>();
-        for (FulfilmentData data : safe(payload.fulfilments)) {
+        for (FulfilmentData data : fulfilmentData) {
             fulfilments.add(new FulfilmentRecord(data.requestId,
                     LocalDate.parse(data.processedDate), safe(data.unitIds)));
         }
@@ -429,6 +596,36 @@ public final class JsonLifeFlowStore implements LifeFlowStore {
     }
 
     public static final class DonorData {
+        public String id;
+        public String name;
+        public int age;
+        public double weightKg;
+        public String bloodType;
+        public String externalLastDonationDate;
+    }
+
+    public static final class LegacyEnvelope {
+        public int formatVersion;
+        public long revision;
+        public String savedAt;
+        public String checksum;
+        public LegacyPayload data;
+    }
+
+    public static final class LegacyChecksumContent {
+        public int formatVersion;
+        public long revision;
+        public LegacyPayload data;
+    }
+
+    public static final class LegacyPayload {
+        public List<LegacyDonorData> donors = new ArrayList<>();
+        public List<UnitData> bloodUnits = new ArrayList<>();
+        public List<RequestData> requests = new ArrayList<>();
+        public List<FulfilmentData> fulfilments = new ArrayList<>();
+    }
+
+    public static final class LegacyDonorData {
         public String id;
         public String name;
         public int age;

@@ -40,7 +40,7 @@ final class JsonLifeFlowStoreTest {
         }
 
         String json = Files.readString(directory.resolve("lifeflow.json"));
-        assertTrue(json.contains("\"formatVersion\" : 1"));
+        assertTrue(json.contains("\"formatVersion\" : 2"));
         assertTrue(json.contains("\"donors\""));
         try (JsonLifeFlowStore reopened = new JsonLifeFlowStore(directory)) {
             assertEquals(1, reopened.load().getRevision());

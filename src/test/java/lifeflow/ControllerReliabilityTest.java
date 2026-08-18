@@ -43,10 +43,12 @@ final class ControllerReliabilityTest {
         controller.addDonor("D1", "Aisha", 25, 55.0, BloodType.A_NEG, null);
         LocalDate donation = TODAY.minusDays(1);
 
-        controller.addBloodUnit("U1", "D1", donation, donation.plusDays(30));
+        controller.addBloodUnit("U1", "D1", donation);
 
         assertEquals(1, store.state.getUnits().size());
-        assertEquals(donation, store.state.getDonors().get(0).getLastDonationDate());
+        assertEquals(null,
+                store.state.getDonors().get(0).getExternalLastDonationDate());
+        assertEquals(donation, controller.getEffectiveLastDonationDate("D1"));
         assertEquals(2, store.state.getRevision());
     }
 
@@ -54,11 +56,10 @@ final class ControllerReliabilityTest {
     void matchingUsesFefoAndPersistsTheAuditInOneSnapshot() throws Exception {
         RecordingStore store = new RecordingStore();
         LifeFlowController controller = new LifeFlowController(new LifeFlowState(), store);
-        LocalDate donation = TODAY.minusDays(1);
         controller.addDonor("D1", "First", 25, 55.0, BloodType.O_NEG, null);
-        controller.addBloodUnit("LATE", "D1", donation, TODAY.plusDays(30));
+        controller.addBloodUnit("LATE", "D1", TODAY.minusDays(1));
         controller.addDonor("D2", "Second", 25, 55.0, BloodType.O_NEG, null);
-        controller.addBloodUnit("EARLY", "D2", donation, TODAY.plusDays(5));
+        controller.addBloodUnit("EARLY", "D2", TODAY.minusDays(10));
         controller.addRequest("R1", "Ward", BloodType.O_NEG, 1, true);
 
         var result = controller.processNextRequest(TODAY);
@@ -94,7 +95,7 @@ final class ControllerReliabilityTest {
         LifeFlowController controller = new LifeFlowController(new LifeFlowState(), store);
         LocalDate donation = TODAY.minusDays(1);
         controller.addDonor("D1", "Aisha", 25, 55.0, BloodType.A_POS, null);
-        controller.addBloodUnit("U1", "D1", donation, TODAY.plusDays(20));
+        controller.addBloodUnit("U1", "D1", donation);
         controller.addRequest("R1", "Ward", BloodType.A_POS, 1, true);
         long revision = controller.getRevision();
         store.failNextSave = true;
@@ -117,7 +118,7 @@ final class ControllerReliabilityTest {
 
         assertThrows(IllegalArgumentException.class,
                 () -> controller.addBloodUnit("U1", "D1",
-                        LocalDate.now().plusDays(1), LocalDate.now().plusDays(20)));
+                        LocalDate.now().plusDays(1)));
         assertEquals(saves, store.saveCount);
         assertTrue(controller.getUnits().isEmpty());
     }
@@ -161,33 +162,34 @@ final class ControllerReliabilityTest {
     }
 
     @Test
-    void expiredUnitsCannotBeEdited() throws Exception {
+    void unusedExpiredUnitDatesCanBeCorrected() throws Exception {
         RecordingStore store = new RecordingStore();
         LifeFlowController controller = new LifeFlowController(new LifeFlowState(), store);
         LocalDate donation = TODAY.minusDays(10);
         controller.addDonor("D1", "Aisha", 25, 55.0, BloodType.A_POS, null);
-        controller.addBloodUnit("U1", "D1", donation, TODAY.minusDays(1));
+        controller.addBloodUnit("U1", "D1", TODAY.minusDays(50));
 
-        assertThrows(IllegalArgumentException.class,
-                () -> controller.updateBloodUnitExpiry("U1", TODAY.plusDays(5)));
+        controller.updateUnusedBloodUnitDonationDate("U1", TODAY.minusDays(45));
+        assertEquals(TODAY.minusDays(10),
+                controller.getUnits().get(0).getExpiryDate());
     }
 
     @Test
     void generatesTheNextDonorUnitAndRequestIdsFromSavedState() throws Exception {
         RecordingStore store = new RecordingStore();
         LifeFlowController controller = new LifeFlowController(new LifeFlowState(), store);
-        assertEquals("D001", controller.getNextDonorId());
-        assertEquals("U001", controller.getNextUnitId());
-        assertEquals("R001", controller.getNextRequestId());
+        assertEquals("D000001", controller.getNextDonorId());
+        assertEquals("U000001", controller.getNextUnitId());
+        assertEquals("R000001", controller.getNextRequestId());
 
         LocalDate donation = TODAY.minusDays(1);
         controller.addDonor("D1", "Aisha", 25, 55.0, BloodType.A_POS, null);
-        controller.addBloodUnit("u009", "D1", donation, TODAY.plusDays(20));
+        controller.addBloodUnit("u009", "D1", donation);
         controller.addRequest("r012", "Ward", BloodType.A_POS, 1, false);
 
-        assertEquals("D002", controller.getNextDonorId());
-        assertEquals("U010", controller.getNextUnitId());
-        assertEquals("R013", controller.getNextRequestId());
+        assertEquals("D000002", controller.getNextDonorId());
+        assertEquals("U000010", controller.getNextUnitId());
+        assertEquals("R000013", controller.getNextRequestId());
     }
 
     private static final class RecordingStore implements LifeFlowStore {

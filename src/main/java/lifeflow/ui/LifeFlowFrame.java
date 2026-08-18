@@ -161,21 +161,23 @@ public final class LifeFlowFrame extends JFrame {
         return page;
     }
 
-    private void showStatus(String message) {
+    private void showStatus(UiNotice notice) {
         StorageInfo storage = controller.getStorageInfo();
-        boolean successfulChange = message != null && (message.contains("success")
-                || message.contains("added") || message.contains("updated")
-                || message.contains("fulfilled"));
         boolean backupPending = !storage.backupCurrent()
                 && !storage.recoveryRequired() && controller.getRevision() > 0;
-        if (backupPending && successfulChange) {
-            message = "Data saved to JSON; backup needs retry.";
+        if (backupPending && notice != null
+                && notice.level() == NoticeLevel.SUCCESS) {
+            notice = UiNotice.warning("Data saved to JSON; backup needs retry.");
         }
-        statusLabel.setText(message == null || message.isBlank() ? " " : "●  " + message);
-        boolean error = message != null && (message.contains("cannot")
-                || message.contains("Could not") || message.contains("insufficient"));
-        statusLabel.setForeground(error ? UiTheme.DANGER
-                : backupPending ? UiTheme.WARNING : UiTheme.SUCCESS);
+        String message = notice == null ? "" : notice.message();
+        statusLabel.setText(message.isBlank() ? " " : "●  " + message);
+        NoticeLevel level = notice == null ? NoticeLevel.INFO : notice.level();
+        statusLabel.setForeground(switch (level) {
+            case SUCCESS -> UiTheme.SUCCESS;
+            case WARNING -> UiTheme.WARNING;
+            case ERROR -> UiTheme.DANGER;
+            case INFO -> UiTheme.NAVY;
+        });
         statusTimer.restart();
     }
 

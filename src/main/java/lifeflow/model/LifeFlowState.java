@@ -55,7 +55,7 @@ public final class LifeFlowState {
         for (Donor donor : source) {
             copies.add(new Donor(donor.getId(), donor.getName(), donor.getAge(),
                     donor.getWeightKg(), donor.getBloodType(),
-                    donor.getLastDonationDate()));
+                    donor.getExternalLastDonationDate()));
         }
         return copies;
     }

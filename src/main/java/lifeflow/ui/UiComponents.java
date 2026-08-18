@@ -303,12 +303,15 @@ public final class UiComponents {
             }
             String status = value == null ? "" : value.toString();
             setOpaque(true);
-            if (status.contains("AVAILABLE") || status.contains("FULFILLED")) {
-                setBackground(UiTheme.SUCCESS_LIGHT);
-                setForeground(UiTheme.SUCCESS);
-            } else if (status.contains("EMERGENCY") || status.contains("USED")) {
+            if (status.contains("NOT ELIGIBLE") || status.contains("EXPIRED")
+                    || status.contains("EMERGENCY") || status.contains("USED")
+                    || status.contains("EMPTY")) {
                 setBackground(UiTheme.DANGER_LIGHT);
                 setForeground(UiTheme.DANGER);
+            } else if (status.contains("AVAILABLE") || status.contains("FULFILLED")
+                    || status.equals("ELIGIBLE") || status.contains("READY")) {
+                setBackground(UiTheme.SUCCESS_LIGHT);
+                setForeground(UiTheme.SUCCESS);
             } else {
                 setBackground(UiTheme.WARNING_LIGHT);
                 setForeground(UiTheme.WARNING);

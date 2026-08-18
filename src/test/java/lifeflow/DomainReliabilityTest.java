@@ -6,6 +6,9 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.time.LocalDate;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import lifeflow.model.BloodRequest;
@@ -19,6 +22,7 @@ import lifeflow.model.RegularRequest;
 import lifeflow.model.RequestStatus;
 import lifeflow.model.UnitStatus;
 import lifeflow.service.DataValidator;
+import lifeflow.service.DonationPolicy;
 import org.junit.jupiter.api.Test;
 
 final class DomainReliabilityTest {
@@ -29,7 +33,10 @@ final class DomainReliabilityTest {
         Donor donor = new Donor("D1", "Aisha", 25, 55.0, BloodType.A_POS,
                 LocalDate.of(2026, 8, 6));
 
-        var result = donor.checkEligibility(TODAY);
+        DonationPolicy policy = new DonationPolicy(Clock.fixed(
+                Instant.parse("2026-08-18T04:00:00Z"), ZoneOffset.UTC));
+        var result = policy.evaluate(donor, TODAY,
+                donor.getExternalLastDonationDate());
 
         assertFalse(result.eligible());
         assertEquals(EligibilityReason.WAITING_PERIOD, result.reason());
@@ -50,8 +57,9 @@ final class DomainReliabilityTest {
     }
 
     @Test
-    void validatorRejectsOrphanUnitsAndStaleDonationHistory() {
-        Donor donor = new Donor("D1", "Aisha", 25, 55.0, BloodType.A_POS, null);
+    void validatorRejectsOrphanUnitsAndDuplicateExternalDonationHistory() {
+        Donor donor = new Donor("D1", "Aisha", 25, 55.0, BloodType.A_POS,
+                TODAY.minusDays(2));
         BloodUnit linked = unit("U1", TODAY.minusDays(2), TODAY.plusDays(30),
                 UnitStatus.AVAILABLE);
         BloodUnit orphan = new BloodUnit("U2", "MISSING", BloodType.A_POS,
@@ -69,7 +77,7 @@ final class DomainReliabilityTest {
     @Test
     void fulfilledRequestsAndUsedUnitsRequireOneAuditRecord() {
         Donor donor = new Donor("D1", "Aisha", 25, 55.0, BloodType.A_POS,
-                TODAY.minusDays(2));
+                null);
         BloodUnit used = unit("U1", TODAY.minusDays(2), TODAY.plusDays(30),
                 UnitStatus.USED);
         BloodRequest request = new RegularRequest("R1", "Clinic", BloodType.A_POS,
@@ -88,7 +96,7 @@ final class DomainReliabilityTest {
     @Test
     void auditMustUseAUnitThatWasValidAfterTheRequest() {
         Donor donor = new Donor("D1", "Aisha", 25, 55.0, BloodType.A_POS,
-                TODAY.minusDays(10));
+                null);
         BloodUnit used = unit("U1", TODAY.minusDays(10), TODAY.minusDays(2),
                 UnitStatus.USED);
         BloodRequest request = new RegularRequest("R1", "Clinic", BloodType.A_POS,

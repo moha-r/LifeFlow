@@ -1,8 +1,11 @@
 package lifeflow;
 
 import java.time.LocalDate;
+import java.time.Clock;
+import java.time.ZoneId;
 import lifeflow.model.BloodType;
 import lifeflow.model.Donor;
+import lifeflow.service.DonationPolicy;
 
 final class DonorTests {
     private DonorTests() {
@@ -21,19 +24,20 @@ final class DonorTests {
         Donor donor = new Donor("D001", "Aisha", 18, 45.0,
                 BloodType.A_POS, null);
 
-        assert donor.isEligible(donationDate)
+        assert policyFor(donationDate).evaluate(donor, donationDate, null).eligible()
                 : "A donor at the minimum age and weight should be eligible";
     }
 
     private static void rejectsAgeAndWeightOutsideRules() {
         LocalDate today = LocalDate.of(2026, 8, 3);
 
-        assert !new Donor("D1", "Young", 17, 50.0, BloodType.O_POS, null)
-                .isEligible(today);
-        assert !new Donor("D2", "Old", 61, 50.0, BloodType.O_POS, null)
-                .isEligible(today);
-        assert !new Donor("D3", "Light", 30, 44.9, BloodType.O_POS, null)
-                .isEligible(today);
+        DonationPolicy policy = policyFor(today);
+        assert !policy.evaluate(new Donor("D1", "Young", 17, 50.0,
+                BloodType.O_POS, null), today, null).eligible();
+        assert !policy.evaluate(new Donor("D2", "Old", 61, 50.0,
+                BloodType.O_POS, null), today, null).eligible();
+        assert !policy.evaluate(new Donor("D3", "Light", 30, 44.9,
+                BloodType.O_POS, null), today, null).eligible();
     }
 
     private static void enforcesThreeMonthDonationGap() {
@@ -41,15 +45,19 @@ final class DonorTests {
         Donor donor = new Donor("D004", "Kumar", 30, 70.0,
                 BloodType.B_POS, lastDonation);
 
-        assert !donor.isEligible(LocalDate.of(2026, 8, 2));
-        assert donor.isEligible(LocalDate.of(2026, 8, 3));
+        DonationPolicy policy = policyFor(LocalDate.of(2026, 8, 3));
+        assert !policy.evaluate(donor, LocalDate.of(2026, 8, 2),
+                lastDonation).eligible();
+        assert policy.evaluate(donor, LocalDate.of(2026, 8, 3),
+                lastDonation).eligible();
     }
 
     private static void rejectsFutureDonationDate() {
         Donor donor = new Donor("D005", "Mira", 25, 55.0,
                 BloodType.AB_NEG, null);
 
-        assert !donor.isEligible(LocalDate.now().plusDays(1));
+        assert !new DonationPolicy().evaluate(donor,
+                LocalDate.now().plusDays(1), null).eligible();
     }
 
     private static void exposesEncapsulatedStateThroughAccessors() {
@@ -61,13 +69,19 @@ final class DonorTests {
         donor.setAge(25);
         donor.setWeightKg(53.0);
         donor.setBloodType(BloodType.O_POS);
-        donor.recordDonation(donationDate);
+        donor.updateDetails("Nur A.", 25, 53.0, BloodType.O_POS, donationDate);
 
         assert donor.getId().equals("D006");
         assert donor.getName().equals("Nur A.");
         assert donor.getAge() == 25;
         assert donor.getWeightKg() == 53.0;
         assert donor.getBloodType() == BloodType.O_POS;
-        assert donor.getLastDonationDate().equals(donationDate);
+        assert donor.getExternalLastDonationDate().equals(donationDate);
+    }
+
+    private static DonationPolicy policyFor(LocalDate date) {
+        ZoneId zone = ZoneId.systemDefault();
+        return new DonationPolicy(Clock.fixed(
+                date.atStartOfDay(zone).toInstant(), zone));
     }
 }

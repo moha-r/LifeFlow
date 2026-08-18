@@ -10,6 +10,7 @@ import java.awt.GridBagLayout;
 import java.awt.GridLayout;
 import java.awt.Rectangle;
 import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
 import javax.swing.BorderFactory;
 import javax.swing.Box;
@@ -24,7 +25,10 @@ import javax.swing.SwingConstants;
 import javax.swing.table.DefaultTableModel;
 import lifeflow.model.BloodRequest;
 import lifeflow.model.BloodType;
+import lifeflow.model.BloodUnit;
 import lifeflow.model.EmergencyRequest;
+import lifeflow.model.InventoryState;
+import lifeflow.model.LifeFlowState;
 import lifeflow.model.RequestStatus;
 import lifeflow.service.LifeFlowController;
 
@@ -36,6 +40,7 @@ public final class DashboardPanel extends JPanel {
     private final JLabel unitsValue = metricValue("availableUnitsValue");
     private final JLabel pendingValue = metricValue("pendingRequestsValue");
     private final JLabel emergenciesValue = metricValue("emergencyRequestsValue");
+    private final JLabel expiringSoonValue = compactMetricValue("expiringSoonValue");
     private final DefaultTableModel inventoryModel = UiComponents.readOnlyModel(
             "Blood Type", "Available", "Stock Level", "Status");
     private final DefaultTableModel requestModel = UiComponents.readOnlyModel(
@@ -115,7 +120,7 @@ public final class DashboardPanel extends JPanel {
         metrics.setMaximumSize(new Dimension(Integer.MAX_VALUE, 78));
         metrics.setPreferredSize(new Dimension(800, 78));
         metrics.add(metricCard("REGISTERED DONORS", donorsValue, UiTheme.CORAL));
-        metrics.add(metricCard("AVAILABLE UNITS", unitsValue, UiTheme.SUCCESS));
+        metrics.add(availabilityMetricCard());
         metrics.add(metricCard("PENDING REQUESTS", pendingValue, UiTheme.WARNING));
         metrics.add(metricCard("EMERGENCY", emergenciesValue, UiTheme.DANGER));
         return metrics;
@@ -133,6 +138,20 @@ public final class DashboardPanel extends JPanel {
         heading.setForeground(UiTheme.MUTED);
         card.add(heading, BorderLayout.NORTH);
         card.add(value, BorderLayout.CENTER);
+        return card;
+    }
+
+    private JPanel availabilityMetricCard() {
+        JPanel card = metricCard("AVAILABLE UNITS", unitsValue, UiTheme.SUCCESS);
+        JPanel footer = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+        footer.setOpaque(false);
+        JLabel caption = new JLabel("Expiring within 7 days: ");
+        caption.setFont(new java.awt.Font(java.awt.Font.SANS_SERIF,
+                java.awt.Font.PLAIN, 9));
+        caption.setForeground(UiTheme.MUTED);
+        footer.add(caption);
+        footer.add(expiringSoonValue);
+        card.add(footer, BorderLayout.SOUTH);
         return card;
     }
 
@@ -260,22 +279,55 @@ public final class DashboardPanel extends JPanel {
     }
 
     public final void refreshData() {
-        LocalDate today = LocalDate.now();
-        donorsValue.setText(Integer.toString(controller.getDonors().size()));
-        unitsValue.setText(Integer.toString(controller.getAvailableUnitCount(today)));
-        pendingValue.setText(Integer.toString(controller.getPendingRequestCount()));
-        emergenciesValue.setText(Integer.toString(controller.getPendingEmergencyCount()));
+        LocalDate today = controller.today();
+        LifeFlowState snapshot = controller.getStateSnapshot();
+        donorsValue.setText(Integer.toString(snapshot.getDonors().size()));
+        int pending = 0;
+        int emergencies = 0;
+        for (BloodRequest request : snapshot.getRequests()) {
+            if (request.getStatus() == RequestStatus.PENDING) {
+                pending++;
+                if (request instanceof EmergencyRequest) {
+                    emergencies++;
+                }
+            }
+        }
+        pendingValue.setText(Integer.toString(pending));
+        emergenciesValue.setText(Integer.toString(emergencies));
 
-        HashMap<BloodType, Integer> stock = controller.getStockCounts(today);
+        HashMap<BloodType, Integer> stock = new HashMap<>();
+        HashMap<BloodType, Integer> expiringByType = new HashMap<>();
+        for (BloodType type : BloodType.values()) {
+            stock.put(type, 0);
+            expiringByType.put(type, 0);
+        }
+        int availableUnits = 0;
+        int expiringSoon = 0;
+        for (BloodUnit unit : snapshot.getUnits()) {
+            if (unit.getInventoryState(today) != InventoryState.AVAILABLE) {
+                continue;
+            }
+            availableUnits++;
+            stock.merge(unit.getBloodType(), 1, Integer::sum);
+            long days = ChronoUnit.DAYS.between(today, unit.getExpiryDate());
+            if (days >= 0 && days <= 7) {
+                expiringSoon++;
+                expiringByType.merge(unit.getBloodType(), 1, Integer::sum);
+            }
+        }
+        unitsValue.setText(Integer.toString(availableUnits));
+        expiringSoonValue.setText(Integer.toString(expiringSoon));
         inventoryModel.setRowCount(0);
         for (BloodType type : BloodType.values()) {
             int count = stock.get(type);
+            int expiring = expiringByType.get(type);
             inventoryModel.addRow(new Object[]{displayType(type), count,
-                    Math.min(100, count * 33) + "%", stockStatus(count)});
+                    Math.min(100, count * 33) + "%", stockStatus(count)
+                    + (expiring == 0 ? "" : " · " + expiring + " EXPIRING")});
         }
 
         requestModel.setRowCount(0);
-        for (BloodRequest request : controller.getRequests()) {
+        for (BloodRequest request : snapshot.getRequests()) {
             String status = request.getStatus() == RequestStatus.PENDING
                     && request instanceof EmergencyRequest
                     ? "EMERGENCY" : request.getStatus().name();
@@ -283,7 +335,7 @@ public final class DashboardPanel extends JPanel {
                     displayType(request.getBloodType()), request.getQuantity(), status});
         }
 
-        BloodRequest request = controller.getNextPendingRequest();
+        BloodRequest request = nextPending(snapshot);
         if (request == null) {
             nextKind.setText("No pending requests");
             nextKind.setForeground(UiTheme.NAVY);
@@ -307,6 +359,23 @@ public final class DashboardPanel extends JPanel {
         }
     }
 
+    private static BloodRequest nextPending(LifeFlowState snapshot) {
+        BloodRequest next = null;
+        for (BloodRequest request : snapshot.getRequests()) {
+            if (request.getStatus() != RequestStatus.PENDING) {
+                continue;
+            }
+            if (next == null || request.getPriority() > next.getPriority()
+                    || (request.getPriority() == next.getPriority()
+                    && (request.getRequestDate().isBefore(next.getRequestDate())
+                    || (request.getRequestDate().equals(next.getRequestDate())
+                    && request.getId().compareToIgnoreCase(next.getId()) < 0)))) {
+                next = request;
+            }
+        }
+        return next;
+    }
+
     private static String stockStatus(int count) {
         if (count == 0) {
             return "EMPTY";
@@ -328,6 +397,15 @@ public final class DashboardPanel extends JPanel {
         label.setFont(new java.awt.Font(java.awt.Font.SANS_SERIF,
                 java.awt.Font.BOLD, 16));
         label.setForeground(UiTheme.NAVY);
+        return label;
+    }
+
+    private static JLabel compactMetricValue(String name) {
+        JLabel label = new JLabel("0");
+        label.setName(name);
+        label.setFont(new java.awt.Font(java.awt.Font.SANS_SERIF,
+                java.awt.Font.BOLD, 9));
+        label.setForeground(UiTheme.WARNING);
         return label;
     }
 

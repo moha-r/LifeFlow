@@ -1,7 +1,9 @@
 package lifeflow.service;
 
 import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Locale;
@@ -25,7 +27,7 @@ public final class DataValidator {
     }
 
     public static void validate(LifeFlowState state, LocalDate today) {
-        if (state == null || state.getRevision() < 0) {
+        if (state == null || state.getRevision() < 0 || today == null) {
             throw new IllegalArgumentException("Invalid LifeFlow state revision.");
         }
 
@@ -34,27 +36,43 @@ public final class DataValidator {
         ArrayList<BloodRequest> requests = state.getRequests();
         ArrayList<FulfilmentRecord> fulfilments = state.getFulfilments();
 
+        Map<String, Donor> donorsById = validateDonors(donors, today);
+        Map<String, ArrayList<LocalDate>> donationsByDonor = new HashMap<>();
+        Map<String, BloodUnit> unitsById = validateUnits(
+                units, donorsById, donationsByDonor, today);
+        validateDonationHistory(donors, donationsByDonor);
+        Map<String, BloodRequest> requestsById = validateRequests(requests, today);
+        validateFulfilments(requests, fulfilments, requestsById, units, unitsById,
+                today);
+    }
+
+    private static Map<String, Donor> validateDonors(ArrayList<Donor> donors,
+                                                      LocalDate today) {
         Map<String, Donor> donorsById = new HashMap<>();
-        Map<String, LocalDate> latestUnitDate = new HashMap<>();
         for (Donor donor : donors) {
             validateText(donor.getId(), "Donor ID");
             validateText(donor.getName(), "Donor name");
-            String key = key(donor.getId());
-            if (donorsById.put(key, donor) != null) {
+            if (donorsById.put(key(donor.getId()), donor) != null) {
                 throw new IllegalArgumentException("Duplicate donor ID: " + donor.getId());
             }
-            if (donor.getAge() <= 0 || donor.getWeightKg() <= 0
+            if (donor.getAge() < 1 || donor.getAge() > 120
+                    || donor.getWeightKg() <= 0 || donor.getWeightKg() > 500
                     || !Double.isFinite(donor.getWeightKg())
                     || donor.getBloodType() == null) {
                 throw new IllegalArgumentException("Invalid donor details: " + donor.getId());
             }
-            if (donor.getLastDonationDate() != null
-                    && donor.getLastDonationDate().isAfter(today)) {
+            if (donor.getExternalLastDonationDate() != null
+                    && donor.getExternalLastDonationDate().isAfter(today)) {
                 throw new IllegalArgumentException(
-                        "Last donation cannot be in the future: " + donor.getId());
+                        "External donation cannot be in the future: " + donor.getId());
             }
         }
+        return donorsById;
+    }
 
+    private static Map<String, BloodUnit> validateUnits(
+            ArrayList<BloodUnit> units, Map<String, Donor> donorsById,
+            Map<String, ArrayList<LocalDate>> donationsByDonor, LocalDate today) {
         Map<String, BloodUnit> unitsById = new HashMap<>();
         for (BloodUnit unit : units) {
             validateText(unit.getId(), "Unit ID");
@@ -75,24 +93,49 @@ public final class DataValidator {
                 throw new IllegalArgumentException(
                         "Unit blood type does not match donor: " + unit.getId());
             }
-            if (unit.getDonationDate().isAfter(today)
-                    || unit.getExpiryDate().isBefore(unit.getDonationDate())) {
+            long shelfLife = ChronoUnit.DAYS.between(
+                    unit.getDonationDate(), unit.getExpiryDate());
+            if (unit.getDonationDate().isAfter(today) || shelfLife < 0
+                    || shelfLife > DonationPolicy.UNIT_SHELF_LIFE_DAYS) {
                 throw new IllegalArgumentException("Invalid unit dates: " + unit.getId());
             }
-            latestUnitDate.merge(key(unit.getDonorId()), unit.getDonationDate(),
-                    (first, second) -> first.isAfter(second) ? first : second);
+            donationsByDonor.computeIfAbsent(key(unit.getDonorId()), ignored ->
+                    new ArrayList<>()).add(unit.getDonationDate());
         }
+        return unitsById;
+    }
 
+    private static void validateDonationHistory(
+            ArrayList<Donor> donors,
+            Map<String, ArrayList<LocalDate>> donationsByDonor) {
         for (Donor donor : donors) {
-            LocalDate latest = latestUnitDate.get(key(donor.getId()));
-            if (latest != null && (donor.getLastDonationDate() == null
-                    || donor.getLastDonationDate().isBefore(latest))) {
+            ArrayList<LocalDate> internalDates = donationsByDonor.getOrDefault(
+                    key(donor.getId()), new ArrayList<>());
+            LocalDate external = donor.getExternalLastDonationDate();
+            if (external != null && internalDates.contains(external)) {
                 throw new IllegalArgumentException(
-                        "Donor last donation is older than recorded units: "
-                                + donor.getId());
+                        "External donation duplicates a recorded unit: " + donor.getId());
+            }
+            ArrayList<LocalDate> allDates = new ArrayList<>(internalDates);
+            if (external != null) {
+                allDates.add(external);
+            }
+            allDates.sort(Comparator.naturalOrder());
+            for (int index = 1; index < allDates.size(); index++) {
+                LocalDate previous = allDates.get(index - 1);
+                LocalDate current = allDates.get(index);
+                if (current.isBefore(previous.plusMonths(
+                        DonationPolicy.WAITING_MONTHS))) {
+                    throw new IllegalArgumentException(
+                            "Donations are less than three months apart for donor: "
+                                    + donor.getId());
+                }
             }
         }
+    }
 
+    private static Map<String, BloodRequest> validateRequests(
+            ArrayList<BloodRequest> requests, LocalDate today) {
         Map<String, BloodRequest> requestsById = new HashMap<>();
         for (BloodRequest request : requests) {
             validateText(request.getId(), "Request ID");
@@ -108,7 +151,16 @@ public final class DataValidator {
                         "Invalid blood request: " + request.getId());
             }
         }
+        return requestsById;
+    }
 
+    private static void validateFulfilments(
+            ArrayList<BloodRequest> requests,
+            ArrayList<FulfilmentRecord> fulfilments,
+            Map<String, BloodRequest> requestsById,
+            ArrayList<BloodUnit> units,
+            Map<String, BloodUnit> unitsById,
+            LocalDate today) {
         Set<String> fulfilledRequestIds = new HashSet<>();
         Set<String> auditedUnitIds = new HashSet<>();
         for (FulfilmentRecord record : fulfilments) {
@@ -144,7 +196,6 @@ public final class DataValidator {
                 }
             }
         }
-
         for (BloodRequest request : requests) {
             boolean audited = fulfilledRequestIds.contains(key(request.getId()));
             if ((request.getStatus() == RequestStatus.FULFILLED) != audited) {

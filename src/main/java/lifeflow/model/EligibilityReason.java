@@ -3,6 +3,7 @@ package lifeflow.model;
 /** Explains the outcome of the simplified donor eligibility check. */
 public enum EligibilityReason {
     ELIGIBLE,
+    DATE_REQUIRED,
     FUTURE_DATE,
     AGE_OUT_OF_RANGE,
     UNDERWEIGHT,

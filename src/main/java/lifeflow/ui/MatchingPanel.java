@@ -9,7 +9,8 @@ import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.GridLayout;
 import java.io.IOException;
-import java.time.LocalDate;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.function.Consumer;
 import javax.swing.BorderFactory;
 import javax.swing.Box;
@@ -28,7 +29,10 @@ import lifeflow.model.Donor;
 import lifeflow.model.EmergencyRequest;
 import lifeflow.model.MatchOutcome;
 import lifeflow.model.MatchResult;
+import lifeflow.model.LifeFlowState;
+import lifeflow.service.BloodInventory;
 import lifeflow.service.LifeFlowController;
+import lifeflow.service.MatchingService;
 
 /** Explicit request-to-inventory matching workflow with atomic feedback. */
 @SuppressWarnings("serial")
@@ -38,7 +42,7 @@ public final class MatchingPanel extends JPanel {
 
     private final LifeFlowController controller;
     private final Runnable onDataChanged;
-    private final Consumer<String> status;
+    private final Consumer<UiNotice> status;
     private final CardLayout stateLayout = new CardLayout();
     private final JPanel state = new JPanel(stateLayout);
     private final JPanel steps = new JPanel(new GridLayout(1, 3));
@@ -57,7 +61,7 @@ public final class MatchingPanel extends JPanel {
             "Matching results will appear here without blocking the workflow.");
 
     public MatchingPanel(LifeFlowController controller, Runnable onDataChanged,
-                         Consumer<String> status) {
+                         Consumer<UiNotice> status) {
         super(new BorderLayout());
         this.controller = controller;
         this.onDataChanged = onDataChanged;
@@ -285,7 +289,7 @@ public final class MatchingPanel extends JPanel {
             return;
         }
         try {
-            MatchResult result = controller.processNextRequest(LocalDate.now());
+            MatchResult result = controller.processNextRequest(controller.today());
             if (result.outcome() == MatchOutcome.INSUFFICIENT_STOCK) {
                 setResult("Matching paused",
                         "Request " + request.getId() + " needs "
@@ -293,7 +297,8 @@ public final class MatchingPanel extends JPanel {
                                 + result.availableCount()
                                 + " are available. No state changed.",
                         UiTheme.DANGER);
-                status.accept("Matching paused: insufficient compatible stock.");
+                status.accept(UiNotice.warning(
+                        "Matching paused: insufficient compatible stock."));
             } else if (result.outcome() == MatchOutcome.FULFILLED) {
                 StringBuilder ids = new StringBuilder();
                 for (BloodUnit unit : result.matchedUnits()) {
@@ -305,7 +310,8 @@ public final class MatchingPanel extends JPanel {
                 setResult("Request fulfilled successfully",
                         "Request " + request.getId() + " used units " + ids + ".",
                         UiTheme.SUCCESS);
-                status.accept("Request fulfilled and inventory updated.");
+                status.accept(UiNotice.success(
+                        "Request fulfilled and inventory updated."));
                 onDataChanged.run();
             } else {
                 setResult("Queue is empty", "No request was processed.",
@@ -323,7 +329,13 @@ public final class MatchingPanel extends JPanel {
     }
 
     public void refreshData() {
-        BloodRequest request = controller.getNextPendingRequest();
+        LifeFlowState snapshot = controller.getStateSnapshot();
+        BloodInventory inventory = new BloodInventory();
+        for (BloodUnit unit : snapshot.getUnits()) {
+            inventory.addUnit(unit);
+        }
+        BloodRequest request = new MatchingService(inventory)
+                .findNextPending(snapshot.getRequests());
         if (request == null) {
             stateLayout.show(state, EMPTY);
             steps.setVisible(false);
@@ -335,8 +347,9 @@ public final class MatchingPanel extends JPanel {
         stateLayout.show(state, ACTIVE);
         steps.setVisible(true);
         process.setEnabled(true);
-        int available = controller.getStockCounts(LocalDate.now())
-                .get(request.getBloodType());
+        java.util.ArrayList<BloodUnit> availableUnits = inventory.getAvailableUnits(
+                request.getBloodType(), controller.today());
+        int available = availableUnits.size();
         requestKind.setText(request.getKind() + " · " + request.getId());
         requestKind.setForeground(request instanceof EmergencyRequest
                 ? UiTheme.DANGER : UiTheme.NAVY);
@@ -349,24 +362,21 @@ public final class MatchingPanel extends JPanel {
 
         compatibleModel.setRowCount(0);
         int selectedCount = 0;
-        for (BloodUnit unit : controller.getAvailableUnits(
-                request.getBloodType(), LocalDate.now())) {
+        Map<String, String> donorNames = new HashMap<>();
+        for (Donor donor : snapshot.getDonors()) {
+            donorNames.put(donor.getId().toLowerCase(java.util.Locale.ROOT),
+                    donor.getName());
+        }
+        for (BloodUnit unit : availableUnits) {
             if (selectedCount >= request.getQuantity()) {
                 break;
             }
-            compatibleModel.addRow(new Object[]{unit.getId(), donorName(unit),
+            compatibleModel.addRow(new Object[]{unit.getId(),
+                    donorNames.getOrDefault(unit.getDonorId()
+                            .toLowerCase(java.util.Locale.ROOT), unit.getDonorId()),
                     unit.getExpiryDate(), "FEFO SELECTED"});
             selectedCount++;
         }
-    }
-
-    private String donorName(BloodUnit unit) {
-        for (Donor donor : controller.getDonors()) {
-            if (donor.getId().equalsIgnoreCase(unit.getDonorId())) {
-                return donor.getName();
-            }
-        }
-        return unit.getDonorId();
     }
 
     private void setResult(String title, String details, Color color) {

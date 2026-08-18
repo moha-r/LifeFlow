@@ -156,7 +156,7 @@ final class ModernUiTests {
         LifeFlowController ready = emptyController("lifeflow-matching-ready-");
         ready.addDonor("D1", "Ready Donor", 30, 60.0, BloodType.O_NEG, null);
         java.time.LocalDate donation = java.time.LocalDate.now().minusDays(1);
-        ready.addBloodUnit("U1", "D1", donation, donation.plusDays(30));
+        ready.addBloodUnit("U1", "D1", donation);
         ready.addRequest("R1", "Emergency Room", BloodType.O_NEG, 1, true);
         MatchingPanel[] readyPanel = new MatchingPanel[1];
         SwingUtilities.invokeAndWait(() -> readyPanel[0] = new MatchingPanel(

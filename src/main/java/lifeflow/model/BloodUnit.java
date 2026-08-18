@@ -23,13 +23,25 @@ public class BloodUnit {
     }
 
     public boolean isAvailable(LocalDate date) {
-        return status == UnitStatus.AVAILABLE
-                && !donationDate.isAfter(date)
-                && !expiryDate.isBefore(date);
+        return getInventoryState(date) == InventoryState.AVAILABLE;
     }
 
     public boolean isExpired(LocalDate date) {
-        return expiryDate.isBefore(date);
+        return getInventoryState(date) == InventoryState.EXPIRED;
+    }
+
+    public InventoryState getInventoryState(LocalDate date) {
+        if (date == null) {
+            throw new IllegalArgumentException("Inventory date is required.");
+        }
+        if (status == UnitStatus.USED) {
+            return InventoryState.USED;
+        }
+        if (donationDate.isAfter(date)) {
+            return InventoryState.SCHEDULED;
+        }
+        return expiryDate.isBefore(date)
+                ? InventoryState.EXPIRED : InventoryState.AVAILABLE;
     }
 
     public String getId() {
@@ -56,7 +68,8 @@ public class BloodUnit {
         return status;
     }
 
-    public void updateExpiryDate(LocalDate expiryDate) {
+    public void correctDates(LocalDate donationDate, LocalDate expiryDate) {
+        this.donationDate = donationDate;
         this.expiryDate = expiryDate;
     }
 

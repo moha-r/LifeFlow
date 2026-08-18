@@ -37,7 +37,7 @@ import lifeflow.service.LifeFlowController;
 public final class RequestsPanel extends JPanel {
     private final LifeFlowController controller;
     private final Runnable onDataChanged;
-    private final Consumer<String> status;
+    private final Consumer<UiNotice> status;
     private final DefaultTableModel model = UiComponents.readOnlyModel(
             "Request ID", "Kind", "Requester", "Blood Type", "Quantity",
             "Date", "Priority", "Status");
@@ -51,7 +51,7 @@ public final class RequestsPanel extends JPanel {
     private final JPanel center = new JPanel(centerLayout);
 
     public RequestsPanel(LifeFlowController controller, Runnable onDataChanged,
-                         Consumer<String> status) {
+                         Consumer<UiNotice> status) {
         super(new BorderLayout());
         this.controller = controller;
         this.onDataChanged = onDataChanged;
@@ -170,14 +170,15 @@ public final class RequestsPanel extends JPanel {
     private void showEditDialog() {
         int viewRow = table.getSelectedRow();
         if (viewRow < 0) {
-            status.accept("Select a pending request to edit.");
+            status.accept(UiNotice.info("Select a pending request to edit."));
             return;
         }
         String id = model.getValueAt(table.convertRowIndexToModel(viewRow), 0).toString();
         for (BloodRequest request : controller.getRequests()) {
             if (request.getId().equals(id)) {
                 if (request.getStatus() == RequestStatus.FULFILLED) {
-                    status.accept("Fulfilled requests cannot be edited.");
+                    status.accept(UiNotice.warning(
+                            "Fulfilled requests cannot be edited."));
                     return;
                 }
                 showRequestDialog(request);
@@ -235,8 +236,8 @@ public final class RequestsPanel extends JPanel {
                 }
                 dialog.dispose();
                 onDataChanged.run();
-                status.accept(editing ? "Blood request updated."
-                        : "Blood request created successfully.");
+                status.accept(UiNotice.success(editing ? "Blood request updated."
+                        : "Blood request created successfully."));
             } catch (NumberFormatException exception) {
                 error.setText("Quantity must be a valid whole number.");
             } catch (IllegalArgumentException | IOException exception) {

@@ -24,6 +24,15 @@ public final class Main {
                 try {
                     state = store.load();
                 } catch (IOException loadFailure) {
+                    if (store.getStorageInfo().detail().startsWith("Migration failed")) {
+                        JOptionPane.showMessageDialog(null,
+                                "LifeFlow could not migrate the previous JSON format.\n"
+                                        + "The original file was preserved and archived.\n\n"
+                                        + loadFailure.getMessage(),
+                                "Migration Failed", JOptionPane.ERROR_MESSAGE);
+                        store.close();
+                        return;
+                    }
                     int choice = JOptionPane.showConfirmDialog(null,
                             "LifeFlow found damaged local data.\n"
                                     + "Restore the latest verified JSON backup?\n\n"
