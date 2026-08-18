@@ -259,6 +259,14 @@ public final class LifeFlowController implements AutoCloseable {
         return nextId("U", ids);
     }
 
+    public String getNextDonorId() {
+        ArrayList<String> ids = new ArrayList<>();
+        for (Donor donor : state.getDonors()) {
+            ids.add(donor.getId());
+        }
+        return nextId("D", ids);
+    }
+
     public String getNextRequestId() {
         ArrayList<String> ids = new ArrayList<>();
         for (BloodRequest request : state.getRequests()) {

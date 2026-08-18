@@ -188,7 +188,9 @@ public final class DonorsPanel extends JPanel {
                 Dialog.ModalityType.APPLICATION_MODAL);
         dialog.setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
 
-        JTextField id = new JTextField(editing ? donor.getId() : "");
+        JTextField id = new JTextField(editing ? donor.getId()
+                : controller.getNextDonorId());
+        id.setEditable(false);
         JTextField name = new JTextField(editing ? donor.getName() : "");
         JTextField age = new JTextField(editing ? Integer.toString(donor.getAge()) : "");
         JTextField weight = new JTextField(editing
@@ -199,7 +201,6 @@ public final class DonorsPanel extends JPanel {
                 ? donor.getLastDonationDate().toString() : "");
         if (editing) {
             type.setSelectedItem(donor.getBloodType());
-            id.setEditable(false);
             boolean linked = hasUnits(donor.getId());
             type.setEnabled(!linked);
             lastDonation.setEditable(!linked);
@@ -217,7 +218,7 @@ public final class DonorsPanel extends JPanel {
         JPanel form = new JPanel(new GridBagLayout());
         form.setBackground(UiTheme.SURFACE);
         form.setBorder(BorderFactory.createEmptyBorder(8, 24, 8, 24));
-        addFormRow(form, 0, "Donor ID", id);
+        addFormRow(form, 0, editing ? "Donor ID" : "Donor ID (auto)", id);
         addFormRow(form, 1, "Full name", name);
         addFormRow(form, 2, "Age", age);
         addFormRow(form, 3, "Weight (kg)", weight);

@@ -173,9 +173,10 @@ final class ControllerReliabilityTest {
     }
 
     @Test
-    void generatesTheNextUnitAndRequestIdsFromSavedState() throws Exception {
+    void generatesTheNextDonorUnitAndRequestIdsFromSavedState() throws Exception {
         RecordingStore store = new RecordingStore();
         LifeFlowController controller = new LifeFlowController(new LifeFlowState(), store);
+        assertEquals("D001", controller.getNextDonorId());
         assertEquals("U001", controller.getNextUnitId());
         assertEquals("R001", controller.getNextRequestId());
 
@@ -184,6 +185,7 @@ final class ControllerReliabilityTest {
         controller.addBloodUnit("u009", "D1", donation, TODAY.plusDays(20));
         controller.addRequest("r012", "Ward", BloodType.A_POS, 1, false);
 
+        assertEquals("D002", controller.getNextDonorId());
         assertEquals("U010", controller.getNextUnitId());
         assertEquals("R013", controller.getNextRequestId());
     }
