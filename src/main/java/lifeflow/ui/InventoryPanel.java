@@ -31,6 +31,7 @@ import javax.swing.table.DefaultTableModel;
 import javax.swing.table.TableRowSorter;
 import lifeflow.model.BloodUnit;
 import lifeflow.model.Donor;
+import lifeflow.model.EligibilityResult;
 import lifeflow.model.UnitStatus;
 import lifeflow.service.LifeFlowController;
 
@@ -163,13 +164,20 @@ public final class InventoryPanel extends JPanel {
         UiComponents.styleInput(expiry);
 
         JLabel error = errorLabel();
+        JButton cancel = UiComponents.secondaryButton("Cancel");
+        JButton save = UiComponents.primaryButton("Add unit");
         JPanel form = formPanel();
         addFormRow(form, 0, "Unit ID", id);
         addFormRow(form, 1, "Donor", donor);
         addFormRow(form, 2, "Donation date", donation);
         addFormRow(form, 3, "Expiry date", expiry);
-        JButton cancel = UiComponents.secondaryButton("Cancel");
-        JButton save = UiComponents.primaryButton("Add unit");
+        Runnable validate = () -> updateAddFormState(id, donor, donation, expiry,
+                error, save);
+        installValidation(id, validate);
+        installValidation(donation, validate);
+        installValidation(expiry, validate);
+        donor.addActionListener(event -> validate.run());
+        validate.run();
         cancel.addActionListener(event -> dialog.dispose());
         save.addActionListener(event -> {
             try {
@@ -212,6 +220,10 @@ public final class InventoryPanel extends JPanel {
         }
         if (selected.getStatus() == UnitStatus.USED) {
             status.accept("Used blood units cannot be edited.");
+            return;
+        }
+        if (selected.isExpired(LocalDate.now())) {
+            status.accept("Expired blood units cannot be edited.");
             return;
         }
         BloodUnit unit = selected;
@@ -329,10 +341,68 @@ public final class InventoryPanel extends JPanel {
             }
             model.addRow(new Object[]{unit.getId(), donorName,
                     DashboardPanel.displayType(unit.getBloodType()),
-                    unit.getDonationDate(), unit.getExpiryDate(), unit.getStatus()});
+                    unit.getDonationDate(), unit.getExpiryDate(),
+                    unit.isExpired(LocalDate.now()) ? "EXPIRED" : unit.getStatus()});
         }
         recordCount.setText(sorter.getViewRowCount() + " RECORDS");
         centerLayout.show(center, model.getRowCount() == 0 ? "empty" : "table");
+    }
+
+    private void updateAddFormState(JTextField id, JComboBox<DonorOption> donor,
+                                    JTextField donation, JTextField expiry,
+                                    JLabel feedback, JButton save) {
+        DonorOption selected = (DonorOption) donor.getSelectedItem();
+        if (selected == null) {
+            showValidation(feedback, save, "Select a registered donor.");
+            return;
+        }
+        LocalDate donationDate;
+        LocalDate expiryDate;
+        try {
+            donationDate = LocalDate.parse(donation.getText().trim());
+            expiryDate = LocalDate.parse(expiry.getText().trim());
+        } catch (DateTimeParseException exception) {
+            showValidation(feedback, save, "Use yyyy-MM-dd for both dates.");
+            return;
+        }
+        if (expiryDate.isBefore(donationDate)) {
+            showValidation(feedback, save,
+                    "Expiry date cannot be before donation date.");
+            return;
+        }
+        EligibilityResult eligibility;
+        try {
+            eligibility = controller.checkDonorEligibility(selected.id, donationDate);
+        } catch (IllegalArgumentException exception) {
+            showValidation(feedback, save, exception.getMessage());
+            return;
+        }
+        if (!eligibility.eligible()) {
+            showValidation(feedback, save, eligibility.message());
+            return;
+        }
+        if (id.getText().trim().isEmpty()) {
+            showValidation(feedback, save, "Enter a unique Unit ID.");
+            return;
+        }
+        feedback.setForeground(UiTheme.SUCCESS);
+        feedback.setText("Donor is eligible on " + donationDate + ".");
+        save.setEnabled(true);
+    }
+
+    private static void showValidation(JLabel feedback, JButton save,
+                                       String message) {
+        feedback.setForeground(UiTheme.DANGER);
+        feedback.setText(message);
+        save.setEnabled(false);
+    }
+
+    private static void installValidation(JTextField field, Runnable validation) {
+        field.getDocument().addDocumentListener(new DocumentListener() {
+            @Override public void insertUpdate(DocumentEvent event) { validation.run(); }
+            @Override public void removeUpdate(DocumentEvent event) { validation.run(); }
+            @Override public void changedUpdate(DocumentEvent event) { validation.run(); }
+        });
     }
 
     private static final class DonorOption {

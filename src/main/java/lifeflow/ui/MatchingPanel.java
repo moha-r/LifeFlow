@@ -10,7 +10,6 @@ import java.awt.GridBagLayout;
 import java.awt.GridLayout;
 import java.io.IOException;
 import java.time.LocalDate;
-import java.util.ArrayList;
 import java.util.function.Consumer;
 import javax.swing.BorderFactory;
 import javax.swing.Box;
@@ -27,6 +26,8 @@ import lifeflow.model.BloodRequest;
 import lifeflow.model.BloodUnit;
 import lifeflow.model.Donor;
 import lifeflow.model.EmergencyRequest;
+import lifeflow.model.MatchOutcome;
+import lifeflow.model.MatchResult;
 import lifeflow.service.LifeFlowController;
 
 /** Explicit request-to-inventory matching workflow with atomic feedback. */
@@ -283,20 +284,19 @@ public final class MatchingPanel extends JPanel {
             setResult("Queue is empty", "No request was processed.", UiTheme.MUTED);
             return;
         }
-        int available = controller.getStockCounts(LocalDate.now())
-                .get(request.getBloodType());
         try {
-            ArrayList<BloodUnit> matched = controller.processNextRequest(LocalDate.now());
-            if (matched.isEmpty()) {
+            MatchResult result = controller.processNextRequest(LocalDate.now());
+            if (result.outcome() == MatchOutcome.INSUFFICIENT_STOCK) {
                 setResult("Matching paused",
                         "Request " + request.getId() + " needs "
                                 + request.getQuantity() + " unit(s), but only "
-                                + available + " are available. No state changed.",
+                                + result.availableCount()
+                                + " are available. No state changed.",
                         UiTheme.DANGER);
                 status.accept("Matching paused: insufficient compatible stock.");
-            } else {
+            } else if (result.outcome() == MatchOutcome.FULFILLED) {
                 StringBuilder ids = new StringBuilder();
-                for (BloodUnit unit : matched) {
+                for (BloodUnit unit : result.matchedUnits()) {
                     if (!ids.isEmpty()) {
                         ids.append(", ");
                     }
@@ -307,6 +307,9 @@ public final class MatchingPanel extends JPanel {
                         UiTheme.SUCCESS);
                 status.accept("Request fulfilled and inventory updated.");
                 onDataChanged.run();
+            } else {
+                setResult("Queue is empty", "No request was processed.",
+                        UiTheme.MUTED);
             }
             refreshData();
         } catch (IOException exception) {
@@ -345,17 +348,15 @@ public final class MatchingPanel extends JPanel {
                 ? UiTheme.SUCCESS : UiTheme.DANGER);
 
         compatibleModel.setRowCount(0);
-        int selected = 0;
-        for (BloodUnit unit : controller.getUnits()) {
-            if (selected >= request.getQuantity()) {
+        int selectedCount = 0;
+        for (BloodUnit unit : controller.getAvailableUnits(
+                request.getBloodType(), LocalDate.now())) {
+            if (selectedCount >= request.getQuantity()) {
                 break;
             }
-            if (unit.getBloodType() == request.getBloodType()
-                    && unit.isAvailable(LocalDate.now())) {
-                compatibleModel.addRow(new Object[]{unit.getId(), donorName(unit),
-                        unit.getExpiryDate(), "ELIGIBLE"});
-                selected++;
-            }
+            compatibleModel.addRow(new Object[]{unit.getId(), donorName(unit),
+                    unit.getExpiryDate(), "FEFO SELECTED"});
+            selectedCount++;
         }
     }
 

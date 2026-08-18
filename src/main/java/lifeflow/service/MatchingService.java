@@ -25,7 +25,9 @@ public class MatchingService {
             if (next == null
                     || request.getPriority() > next.getPriority()
                     || (request.getPriority() == next.getPriority()
-                    && request.getRequestDate().isBefore(next.getRequestDate()))) {
+                    && (request.getRequestDate().isBefore(next.getRequestDate())
+                    || (request.getRequestDate().equals(next.getRequestDate())
+                    && request.getId().compareToIgnoreCase(next.getId()) < 0)))) {
                 next = request;
             }
         }

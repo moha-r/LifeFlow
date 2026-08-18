@@ -3,13 +3,10 @@ package lifeflow;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.time.LocalDate;
-import java.util.ArrayList;
-import lifeflow.model.BloodRequest;
 import lifeflow.model.BloodType;
-import lifeflow.model.BloodUnit;
 import lifeflow.model.Donor;
-import lifeflow.model.UnitStatus;
-import lifeflow.persistence.FileManager;
+import lifeflow.model.LifeFlowState;
+import lifeflow.persistence.JsonLifeFlowStore;
 import lifeflow.service.LifeFlowController;
 
 final class LifeFlowControllerTests {
@@ -28,17 +25,16 @@ final class LifeFlowControllerTests {
     }
 
     private static void addsAndPersistsDonor() throws IOException {
-        FileManager files = new FileManager(Files.createTempDirectory("lifeflow-controller-"));
-        LifeFlowController controller = new LifeFlowController(
-                new ArrayList<Donor>(), new ArrayList<BloodUnit>(),
-                new ArrayList<BloodRequest>(), files);
+        JsonLifeFlowStore store = new JsonLifeFlowStore(
+                Files.createTempDirectory("lifeflow-controller-"));
+        LifeFlowController controller = new LifeFlowController(new LifeFlowState(), store);
 
         controller.addDonor("D1", "Aisha Noor", 24, 55.0,
                 BloodType.A_POS, LocalDate.of(2026, 1, 1));
 
         assert controller.getDonors().size() == 1;
         assert controller.getDonors().get(0).getName().equals("Aisha Noor");
-        assert files.loadDonors().size() == 1 : "Successful changes must be saved";
+        assert store.load().getDonors().size() == 1 : "Successful changes must be saved";
     }
 
     private static void rejectsDuplicateDonorIds() throws IOException {
@@ -57,10 +53,9 @@ final class LifeFlowControllerTests {
     }
 
     private static void addsEligibleUnitAndUpdatesCounts() throws IOException {
-        FileManager files = new FileManager(Files.createTempDirectory("lifeflow-unit-"));
-        LifeFlowController controller = new LifeFlowController(
-                new ArrayList<Donor>(), new ArrayList<BloodUnit>(),
-                new ArrayList<BloodRequest>(), files);
+        JsonLifeFlowStore store = new JsonLifeFlowStore(
+                Files.createTempDirectory("lifeflow-unit-"));
+        LifeFlowController controller = new LifeFlowController(new LifeFlowState(), store);
         LocalDate donationDate = LocalDate.now().minusDays(1);
         controller.addDonor("D1", "Eligible Donor", 28, 60.0,
                 BloodType.O_NEG, null);
@@ -71,7 +66,7 @@ final class LifeFlowControllerTests {
         assert controller.getUnits().size() == 1;
         assert controller.getAvailableUnitCount(LocalDate.now()) == 1;
         assert controller.getStockCounts(LocalDate.now()).get(BloodType.O_NEG) == 1;
-        assert files.loadUnits().size() == 1;
+        assert store.load().getUnits().size() == 1;
     }
 
     private static void rejectsUnitForIneligibleDonor() throws IOException {
@@ -84,7 +79,7 @@ final class LifeFlowControllerTests {
             controller.addBloodUnit("U1", "D1", LocalDate.now(),
                     LocalDate.now().plusDays(30));
         } catch (IllegalArgumentException exception) {
-            rejected = exception.getMessage().contains("not eligible");
+            rejected = exception.getMessage().contains("between 18 and 60");
         }
         assert rejected : "Ineligible donors cannot create blood units";
         assert controller.getUnits().isEmpty();
@@ -125,7 +120,8 @@ final class LifeFlowControllerTests {
         controller.updateBloodUnitExpiry("U1", newExpiry);
         assert controller.getUnits().get(0).getExpiryDate().equals(newExpiry);
 
-        controller.getUnits().get(0).setStatus(UnitStatus.USED);
+        controller.addRequest("R1", "Ward", BloodType.A_NEG, 1, false);
+        controller.processNextRequest(LocalDate.now());
         boolean rejected = false;
         try {
             controller.updateBloodUnitExpiry("U1", donation.plusDays(40));
@@ -154,8 +150,8 @@ final class LifeFlowControllerTests {
                 BloodType.O_NEG, null);
         controller.addBloodUnit("U1", "D1", donation, donation.plusDays(30));
 
-        ArrayList<BloodUnit> matched = controller.processNextRequest(LocalDate.now());
-        assert matched.size() == 1;
+        var result = controller.processNextRequest(LocalDate.now());
+        assert result.matchedUnits().size() == 1;
         assert controller.getRequests().get(1).getStatus()
                 == lifeflow.model.RequestStatus.FULFILLED;
         assert controller.getPendingRequestCount() == 1;
@@ -165,7 +161,11 @@ final class LifeFlowControllerTests {
     private static void protectsFulfilledRequestsFromEditing() throws IOException {
         LifeFlowController controller = emptyController();
         controller.addRequest("R1", "Ward", BloodType.A_POS, 1, false);
-        controller.getRequests().get(0).setStatus(lifeflow.model.RequestStatus.FULFILLED);
+        LocalDate donation = LocalDate.now().minusDays(1);
+        controller.addDonor("D1", "Request Donor", 30, 60.0,
+                BloodType.A_POS, null);
+        controller.addBloodUnit("U1", "D1", donation, donation.plusDays(30));
+        controller.processNextRequest(LocalDate.now());
 
         boolean rejected = false;
         try {
@@ -177,8 +177,7 @@ final class LifeFlowControllerTests {
     }
 
     private static LifeFlowController emptyController() throws IOException {
-        return new LifeFlowController(new ArrayList<Donor>(),
-                new ArrayList<BloodUnit>(), new ArrayList<BloodRequest>(),
-                new FileManager(Files.createTempDirectory("lifeflow-controller-empty-")));
+        return new LifeFlowController(new LifeFlowState(), new JsonLifeFlowStore(
+                Files.createTempDirectory("lifeflow-controller-empty-")));
     }
 }

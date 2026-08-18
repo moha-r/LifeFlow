@@ -10,7 +10,6 @@ public final class AllTests {
         BloodRequestTests.run();
         InventoryTests.run();
         MatchingServiceTests.run();
-        FileManagerTests.run();
         LifeFlowControllerTests.run();
         ModernUiTests.run();
         System.out.println("All tests passed.");

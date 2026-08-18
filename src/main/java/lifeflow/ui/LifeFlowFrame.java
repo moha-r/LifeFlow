@@ -6,7 +6,6 @@ import java.awt.Dimension;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.io.IOException;
-import java.util.ArrayList;
 import javax.swing.BorderFactory;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
@@ -14,10 +13,9 @@ import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.SwingConstants;
 import javax.swing.Timer;
-import lifeflow.model.BloodRequest;
-import lifeflow.model.BloodUnit;
-import lifeflow.model.Donor;
-import lifeflow.persistence.FileManager;
+import lifeflow.model.LifeFlowState;
+import lifeflow.persistence.LifeFlowStore;
+import lifeflow.persistence.StorageInfo;
 import lifeflow.service.LifeFlowController;
 
 /** Modern application shell with sidebar navigation and live page refresh. */
@@ -34,6 +32,8 @@ public final class LifeFlowFrame extends JFrame {
     private final JPanel pages = new JPanel(pageLayout);
     private final JLabel statusLabel = new JLabel(" ");
     private final JLabel breadcrumbLabel = new JLabel("Workspace / Overview");
+    private final JLabel storageHealthLabel = new JLabel();
+    private final JLabel storagePathLabel = new JLabel();
     private final Timer statusTimer = new Timer(3500, event -> statusLabel.setText(" "));
     private SidebarPanel sidebarPanel;
 
@@ -43,10 +43,9 @@ public final class LifeFlowFrame extends JFrame {
     private RequestsPanel requestsPanel;
     private MatchingPanel matchingPanel;
 
-    public LifeFlowFrame(ArrayList<Donor> donors, ArrayList<BloodUnit> units,
-                         ArrayList<BloodRequest> requests, FileManager fileManager) {
+    public LifeFlowFrame(LifeFlowState state, LifeFlowStore store) {
         super("LifeFlow - Blood Donation and Emergency Matching");
-        controller = new LifeFlowController(donors, units, requests, fileManager);
+        controller = new LifeFlowController(state, store);
         configureWindow();
         buildContent();
         refreshAllPages();
@@ -62,12 +61,13 @@ public final class LifeFlowFrame extends JFrame {
             @Override
             public void windowClosing(WindowEvent event) {
                 try {
-                    controller.saveAll();
+                    controller.close();
                     dispose();
                 } catch (IOException exception) {
                     JOptionPane.showMessageDialog(LifeFlowFrame.this,
-                            "LifeFlow could not save its data.\n" + exception.getMessage(),
-                            "Save Error", JOptionPane.ERROR_MESSAGE);
+                            "LifeFlow could not release its storage lock.\n"
+                                    + exception.getMessage(),
+                            "Close Error", JOptionPane.ERROR_MESSAGE);
                 }
             }
         });
@@ -116,14 +116,11 @@ public final class LifeFlowFrame extends JFrame {
         breadcrumbLabel.setFont(UiTheme.SMALL);
         breadcrumbLabel.setForeground(UiTheme.MUTED);
         bar.add(breadcrumbLabel, BorderLayout.WEST);
-        JLabel ready = new JLabel("●  SYSTEM READY");
-        ready.setOpaque(true);
-        ready.setBackground(UiTheme.SUCCESS_LIGHT);
-        ready.setForeground(UiTheme.SUCCESS);
-        ready.setFont(new java.awt.Font(java.awt.Font.SANS_SERIF,
+        storageHealthLabel.setOpaque(true);
+        storageHealthLabel.setFont(new java.awt.Font(java.awt.Font.SANS_SERIF,
                 java.awt.Font.BOLD, 10));
-        ready.setBorder(BorderFactory.createEmptyBorder(6, 9, 6, 9));
-        bar.add(ready, BorderLayout.EAST);
+        storageHealthLabel.setBorder(BorderFactory.createEmptyBorder(6, 9, 6, 9));
+        bar.add(storageHealthLabel, BorderLayout.EAST);
         return bar;
     }
 
@@ -136,10 +133,10 @@ public final class LifeFlowFrame extends JFrame {
         statusLabel.setForeground(UiTheme.NAVY);
         statusLabel.setFont(UiTheme.SMALL);
         bar.add(statusLabel, BorderLayout.WEST);
-        JLabel saved = new JLabel("Local data storage", SwingConstants.RIGHT);
-        saved.setFont(UiTheme.SMALL);
-        saved.setForeground(UiTheme.MUTED);
-        bar.add(saved, BorderLayout.EAST);
+        storagePathLabel.setHorizontalAlignment(SwingConstants.RIGHT);
+        storagePathLabel.setFont(UiTheme.SMALL);
+        storagePathLabel.setForeground(UiTheme.MUTED);
+        bar.add(storagePathLabel, BorderLayout.EAST);
         return bar;
     }
 
@@ -165,10 +162,20 @@ public final class LifeFlowFrame extends JFrame {
     }
 
     private void showStatus(String message) {
+        StorageInfo storage = controller.getStorageInfo();
+        boolean successfulChange = message != null && (message.contains("success")
+                || message.contains("added") || message.contains("updated")
+                || message.contains("fulfilled"));
+        boolean backupPending = !storage.backupCurrent()
+                && !storage.recoveryRequired() && controller.getRevision() > 0;
+        if (backupPending && successfulChange) {
+            message = "Data saved to JSON; backup needs retry.";
+        }
         statusLabel.setText(message == null || message.isBlank() ? " " : "●  " + message);
-        statusLabel.setForeground(message != null && (message.contains("cannot")
-                || message.contains("Could not") || message.contains("insufficient"))
-                ? UiTheme.DANGER : UiTheme.SUCCESS);
+        boolean error = message != null && (message.contains("cannot")
+                || message.contains("Could not") || message.contains("insufficient"));
+        statusLabel.setForeground(error ? UiTheme.DANGER
+                : backupPending ? UiTheme.WARNING : UiTheme.SUCCESS);
         statusTimer.restart();
     }
 
@@ -178,5 +185,29 @@ public final class LifeFlowFrame extends JFrame {
         inventoryPanel.refreshData();
         requestsPanel.refreshData();
         matchingPanel.refreshData();
+        refreshStorageStatus();
+    }
+
+    private void refreshStorageStatus() {
+        StorageInfo info = controller.getStorageInfo();
+        String state;
+        if (info.recoveryRequired()) {
+            state = "●  RECOVERY REQUIRED";
+            storageHealthLabel.setBackground(UiTheme.DANGER_LIGHT);
+            storageHealthLabel.setForeground(UiTheme.DANGER);
+        } else if (!info.backupCurrent()) {
+            state = "●  BACKUP PENDING";
+            storageHealthLabel.setBackground(UiTheme.WARNING_LIGHT);
+            storageHealthLabel.setForeground(UiTheme.WARNING);
+        } else {
+            state = "●  STORAGE READY";
+            storageHealthLabel.setBackground(UiTheme.SUCCESS_LIGHT);
+            storageHealthLabel.setForeground(UiTheme.SUCCESS);
+        }
+        storageHealthLabel.setText(state);
+        storageHealthLabel.setToolTipText(info.detail());
+        String path = info.dataFile().toAbsolutePath().normalize().toString();
+        storagePathLabel.setText("JSON · " + path);
+        storagePathLabel.setToolTipText(path);
     }
 }

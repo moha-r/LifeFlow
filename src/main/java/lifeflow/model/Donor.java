@@ -22,14 +22,32 @@ public class Donor {
     }
 
     public boolean isEligible(LocalDate donationDate) {
+        return checkEligibility(donationDate).eligible();
+    }
+
+    public EligibilityResult checkEligibility(LocalDate donationDate) {
         if (donationDate == null || donationDate.isAfter(LocalDate.now())) {
-            return false;
+            return new EligibilityResult(false, EligibilityReason.FUTURE_DATE, null,
+                    "Donation date cannot be in the future.");
         }
-        if (age < 18 || age > 60 || weightKg < 45.0) {
-            return false;
+        if (age < 18 || age > 60) {
+            return new EligibilityResult(false, EligibilityReason.AGE_OUT_OF_RANGE,
+                    null, "Donor age must be between 18 and 60.");
         }
-        return lastDonationDate == null
-                || !donationDate.isBefore(lastDonationDate.plusMonths(3));
+        if (weightKg < 45.0) {
+            return new EligibilityResult(false, EligibilityReason.UNDERWEIGHT, null,
+                    "Donor weight must be at least 45 kg.");
+        }
+        if (lastDonationDate != null) {
+            LocalDate nextDate = lastDonationDate.plusMonths(3);
+            if (donationDate.isBefore(nextDate)) {
+                return new EligibilityResult(false, EligibilityReason.WAITING_PERIOD,
+                        nextDate, "Last donation: " + lastDonationDate
+                        + ". Next eligible date: " + nextDate + ".");
+            }
+        }
+        return new EligibilityResult(true, EligibilityReason.ELIGIBLE, null,
+                "Donor is eligible on this date.");
     }
 
     public void recordDonation(LocalDate donationDate) {

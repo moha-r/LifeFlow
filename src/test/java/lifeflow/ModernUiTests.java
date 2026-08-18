@@ -3,7 +3,6 @@ package lifeflow;
 import java.awt.Component;
 import java.awt.Container;
 import java.nio.file.Files;
-import java.util.ArrayList;
 import javax.swing.JLabel;
 import javax.swing.JButton;
 import javax.swing.JPanel;
@@ -11,11 +10,9 @@ import javax.swing.JScrollPane;
 import javax.swing.SwingUtilities;
 import javax.swing.JTable;
 import javax.swing.JTextField;
-import lifeflow.model.BloodRequest;
 import lifeflow.model.BloodType;
-import lifeflow.model.BloodUnit;
-import lifeflow.model.Donor;
-import lifeflow.persistence.FileManager;
+import lifeflow.model.LifeFlowState;
+import lifeflow.persistence.JsonLifeFlowStore;
 import lifeflow.service.LifeFlowController;
 import lifeflow.ui.BoundedContentPanel;
 import lifeflow.ui.DashboardPanel;
@@ -92,10 +89,7 @@ final class ModernUiTests {
     }
 
     private static void dashboardUsesDenseOperationsLayout() throws Exception {
-        LifeFlowController controller = new LifeFlowController(
-                new ArrayList<Donor>(), new ArrayList<BloodUnit>(),
-                new ArrayList<BloodRequest>(),
-                new FileManager(Files.createTempDirectory("lifeflow-dashboard-layout-")));
+        LifeFlowController controller = emptyController("lifeflow-dashboard-layout-");
         DashboardPanel[] panel = new DashboardPanel[1];
         SwingUtilities.invokeAndWait(() -> panel[0] = new DashboardPanel(
                 controller, () -> { }, () -> { }, () -> { }, () -> { }));
@@ -117,10 +111,7 @@ final class ModernUiTests {
     }
 
     private static void dashboardRefreshesLiveCounts() throws Exception {
-        LifeFlowController controller = new LifeFlowController(
-                new ArrayList<Donor>(), new ArrayList<BloodUnit>(),
-                new ArrayList<BloodRequest>(),
-                new FileManager(Files.createTempDirectory("lifeflow-ui-")));
+        LifeFlowController controller = emptyController("lifeflow-ui-");
         DashboardPanel[] panel = new DashboardPanel[1];
         SwingUtilities.invokeAndWait(() -> panel[0] = new DashboardPanel(
                 controller, () -> { }, () -> { }, () -> { }, () -> { }));
@@ -133,10 +124,7 @@ final class ModernUiTests {
     }
 
     private static void dataPagesConstructAndRefreshHeadlessly() throws Exception {
-        LifeFlowController controller = new LifeFlowController(
-                new ArrayList<Donor>(), new ArrayList<BloodUnit>(),
-                new ArrayList<BloodRequest>(),
-                new FileManager(Files.createTempDirectory("lifeflow-pages-")));
+        LifeFlowController controller = emptyController("lifeflow-pages-");
         SwingUtilities.invokeAndWait(() -> {
             DonorsPanel donors = new DonorsPanel(controller, () -> { }, message -> { });
             InventoryPanel inventory = new InventoryPanel(controller, () -> { }, message -> { });
@@ -156,10 +144,7 @@ final class ModernUiTests {
     }
 
     private static void matchingUsesExplicitOperationalFlow() throws Exception {
-        LifeFlowController empty = new LifeFlowController(
-                new ArrayList<Donor>(), new ArrayList<BloodUnit>(),
-                new ArrayList<BloodRequest>(),
-                new FileManager(Files.createTempDirectory("lifeflow-matching-empty-")));
+        LifeFlowController empty = emptyController("lifeflow-matching-empty-");
         MatchingPanel[] emptyPanel = new MatchingPanel[1];
         SwingUtilities.invokeAndWait(() -> emptyPanel[0] = new MatchingPanel(
                 empty, () -> { }, message -> { }));
@@ -168,10 +153,7 @@ final class ModernUiTests {
         assert emptyProcess instanceof JButton;
         assert !emptyProcess.isEnabled();
 
-        LifeFlowController ready = new LifeFlowController(
-                new ArrayList<Donor>(), new ArrayList<BloodUnit>(),
-                new ArrayList<BloodRequest>(),
-                new FileManager(Files.createTempDirectory("lifeflow-matching-ready-")));
+        LifeFlowController ready = emptyController("lifeflow-matching-ready-");
         ready.addDonor("D1", "Ready Donor", 30, 60.0, BloodType.O_NEG, null);
         java.time.LocalDate donation = java.time.LocalDate.now().minusDays(1);
         ready.addBloodUnit("U1", "D1", donation, donation.plusDays(30));
@@ -202,6 +184,11 @@ final class ModernUiTests {
         assert table.getShowHorizontalLines();
         assert table.getShowVerticalLines();
         assert table.getIntercellSpacing().width > 0;
+    }
+
+    private static LifeFlowController emptyController(String prefix) throws Exception {
+        return new LifeFlowController(new LifeFlowState(),
+                new JsonLifeFlowStore(Files.createTempDirectory(prefix)));
     }
 
     private static String labelText(Container root, String name) {

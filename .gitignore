@@ -1,7 +1,13 @@
 out/
+target/
 tmp/
 .serena/
 .worktrees/
 .superpowers/
 .DS_Store
 data/*.txt
+*.json
+*.json.tmp
+*.lock
+backups/
+recovery/

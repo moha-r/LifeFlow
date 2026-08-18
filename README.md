@@ -17,34 +17,35 @@ the highest-priority request with available units of the same ABO and Rh group.
 - Inheritance through `RegularRequest` and `EmergencyRequest`.
 - Runtime polymorphism through `ArrayList<BloodRequest>` and `getPriority()`.
 - `ArrayList` collections and a `HashMap<BloodType, Integer>` stock summary.
-- Pipe-delimited text files for data persistence.
+- One checksum-verified JSON snapshot for local data persistence.
+- Atomic saves, automatic JSON backups, recovery, and a single-instance lock.
 - Meaningful request-priority and exact-group matching simulation.
 
 ## Compile, test, and run
 
-The code uses Java 17 language compatibility and has no external dependencies.
+The project uses Java 17, Maven Wrapper, Jackson for JSON, and JUnit 5.
 
 ```bash
-mkdir -p out
-javac --release 17 -Xlint:all -d out $(find src test -name '*.java')
-java -ea -cp out lifeflow.AllTests
-java -cp out lifeflow.Main
+./mvnw clean test
+./mvnw clean package
+java -jar target/lifeflow.jar
 ```
 
-Data files are created inside `data/` after the first successful save.
+The first launch creates `~/.lifeflow/lifeflow.json` and a verified backup.
+Set `LIFEFLOW_DATA_DIR` before launching to use another local folder. The
+storage path shown in the application status bar is the file actually in use.
 
 ## Ready-made demo
 
-The repository includes fictional demonstration data. Load it before the live
-demo with:
+For a clean demonstration, start the application with a temporary local store:
 
 ```bash
-cp data/demo/*.txt data/
-java -cp out lifeflow.Main
+LIFEFLOW_DATA_DIR="$(mktemp -d)" java -jar target/lifeflow.jar
 ```
 
-The scenario contains a regular request and an emergency request. Processing
-the next request selects the emergency request and matches two `O_NEG` units.
+Register donors and units, then create one regular request and one emergency
+request. Processing the queue selects the emergency request first. Matching
+uses exact ABO/Rh groups and FEFO ordering; it never partially fulfils a request.
 
 ## Generated deliverables
 
@@ -57,14 +58,14 @@ the next request selects the emergency request and matches two `O_NEG` units.
 ## Project structure
 
 ```text
-src/lifeflow/
+src/main/java/lifeflow/
 ├── Main.java
 ├── model/        Donors, units, requests, enums
 ├── service/      Inventory and matching logic
-├── persistence/  Text-file persistence
+├── persistence/  Atomic JSON storage, backups, locking, recovery
 └── ui/           Dashboard, sidebar, pages, dialogs, and shared theme
 
-test/lifeflow/    Assertion-based automated tests
+src/test/java/    JUnit 5 and legacy assertion-based regression tests
 docs/             Architecture, report source, presentation script
 output/           Generated PDF and PowerPoint deliverables
 ```
@@ -77,6 +78,17 @@ output/           Generated PDF and PowerPoint deliverables
 4. Create one regular and one emergency request.
 5. Process the next request and show that the emergency request is selected.
 6. Restart the application and confirm that the saved data returns.
+
+## Local storage safety
+
+- `lifeflow.json` is the single source of truth for donors, units, requests,
+  and fulfilment audit records.
+- Saves use a validated temporary file followed by an atomic replacement.
+- A SHA-256 checksum detects manual edits and incomplete files.
+- The last two backups are kept under `~/.lifeflow/backups/`.
+- A damaged primary file is never overwritten silently; the application asks
+  before restoring a verified backup.
+- Runtime JSON, lock, backup, and recovery files are ignored by Git.
 
 ## Submission notes
 

@@ -2,6 +2,7 @@ package lifeflow.service;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import lifeflow.model.BloodType;
 import lifeflow.model.BloodUnit;
@@ -31,6 +32,10 @@ public class BloodInventory {
                 available.add(unit);
             }
         }
+        available.sort(Comparator.comparing(BloodUnit::getExpiryDate)
+                .thenComparing(BloodUnit::getDonationDate)
+                .thenComparing(BloodUnit::getId,
+                        String.CASE_INSENSITIVE_ORDER));
         return available;
     }
 

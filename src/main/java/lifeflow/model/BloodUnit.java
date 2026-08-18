@@ -24,7 +24,12 @@ public class BloodUnit {
 
     public boolean isAvailable(LocalDate date) {
         return status == UnitStatus.AVAILABLE
+                && !donationDate.isAfter(date)
                 && !expiryDate.isBefore(date);
+    }
+
+    public boolean isExpired(LocalDate date) {
+        return expiryDate.isBefore(date);
     }
 
     public String getId() {
