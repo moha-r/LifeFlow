@@ -228,20 +228,26 @@ public final class LifeFlowController implements AutoCloseable {
         }
         BloodRequest request = service.findNextFulfillable(requests, date);
         if (request == null) {
-            int available = inventory.getAvailableUnits(highestPriority.getBloodType(),
-                    date).size();
             return new MatchResult(MatchOutcome.INSUFFICIENT_STOCK, highestPriority,
-                    List.of(), available,
-                    "No pending request has enough compatible stock.");
+                    List.of(), availableFor(highestPriority, inventory, date),
+                    "No pending request can be fulfilled in full. "
+                            + highestPriority.getId() + " needs "
+                            + highestPriority.getQuantity() + " unit(s) of "
+                            + highestPriority.getBloodType() + ", but only "
+                            + availableFor(highestPriority, inventory, date)
+                            + " are available.");
         }
         if (date.isBefore(request.getRequestDate())) {
             throw new IllegalArgumentException(
                     "Processing date must be between the request date and today.");
         }
-        int available = inventory.getAvailableUnits(request.getBloodType(), date).size();
+        int available = availableFor(request, inventory, date);
         if (available < request.getQuantity()) {
             return new MatchResult(MatchOutcome.INSUFFICIENT_STOCK, request,
-                    List.of(), available, "Insufficient compatible stock.");
+                    List.of(), available, request.getId() + " needs "
+                            + request.getQuantity() + " unit(s) of "
+                            + request.getBloodType() + ", but only " + available
+                            + " are available.");
         }
         ArrayList<BloodUnit> matched = service.match(request, date);
         ArrayList<FulfilmentRecord> fulfilments = state.getFulfilments();
@@ -320,6 +326,11 @@ public final class LifeFlowController implements AutoCloseable {
 
     private MatchingService matchingService(ArrayList<BloodUnit> units) {
         return new MatchingService(BloodInventory.from(units));
+    }
+
+    private static int availableFor(BloodRequest request,
+                                    BloodInventory inventory, LocalDate date) {
+        return inventory.getAvailableUnits(request.getBloodType(), date).size();
     }
 
     private static Donor findDonor(List<Donor> donors, String id) {

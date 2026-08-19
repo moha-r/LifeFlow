@@ -44,8 +44,11 @@ LIFEFLOW_DATA_DIR="$(mktemp -d)" java -jar target/lifeflow.jar
 ```
 
 Register donors and units, then create one regular request and one emergency
-request. Processing the queue selects the emergency request first. Matching
-uses exact ABO/Rh groups and FEFO ordering; it never partially fulfils a request.
+request. Processing the queue selects the highest-priority request that can be
+fulfilled in full: an emergency request leads the queue when its exact stock is
+available, otherwise the first regular request with full stock is processed.
+Matching uses exact ABO/Rh groups and FEFO ordering; it never partially fulfils
+a request.
 
 ## Generated deliverables
 

@@ -99,7 +99,7 @@ public final class MatchingPanel extends JPanel {
         steps.setName("matchingSteps");
         steps.setBackground(UiTheme.SURFACE);
         steps.setBorder(BorderFactory.createLineBorder(UiTheme.BORDER));
-        steps.add(step("1", "Priority request selected", true));
+        steps.add(step("1", "Fulfillable request selected", true));
         steps.add(step("2", "Compatible inventory checked", true));
         steps.add(step("3", "Review and process", false));
         steps.setPreferredSize(new Dimension(700, 54));
@@ -174,7 +174,7 @@ public final class MatchingPanel extends JPanel {
     }
 
     private JPanel buildRequestPanel() {
-        JPanel panel = denseSection("Selected request", "#1 in queue");
+        JPanel panel = denseSection("Selected request", "First with full stock");
         JPanel content = new JPanel();
         content.setBackground(UiTheme.SURFACE);
         content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
