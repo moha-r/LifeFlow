@@ -24,8 +24,11 @@ classDiagram
         -double weightKg
         -BloodType bloodType
         -LocalDate externalLastDonationDate
-        +isEligible(LocalDate) EligibilityResult
         +updateDetails(...) void
+    }
+    class DonationPolicy {
+        +evaluate(Donor, LocalDate, LocalDate) EligibilityResult
+        +calculateExpiry(LocalDate) LocalDate
     }
     class BloodUnit {
         -String id
@@ -86,7 +89,14 @@ classDiagram
         +save(LifeFlowState) void
         +restoreLatestBackup() LifeFlowState
     }
-    class LifeFlowController
+    class LifeFlowController {
+        +checkDonorEligibility(String, LocalDate) EligibilityResult
+        +add/update records
+        +getNextPendingRequest() BloodRequest
+        +getNextFulfillableRequest() BloodRequest
+        +processNextRequest(LocalDate) MatchResult
+        +saveAll() void
+    }
     class LifeFlowFrame
 
     BloodRequest <|-- RegularRequest
@@ -100,9 +110,12 @@ classDiagram
     MatchingService --> BloodInventory
     MatchingService --> BloodRequest
     LifeFlowStore <|.. JsonLifeFlowStore
+    DonationPolicy --> Donor
+    DonationPolicy --> EligibilityResult
     LifeFlowController --> MatchingService
     LifeFlowController --> BloodInventory
     LifeFlowController --> DataValidator
+    LifeFlowController --> DonationPolicy
     LifeFlowController --> LifeFlowStore
     LifeFlowFrame --> LifeFlowController
 ```
