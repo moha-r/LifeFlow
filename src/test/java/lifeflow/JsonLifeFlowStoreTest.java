@@ -324,7 +324,7 @@ final class JsonLifeFlowStoreTest {
                             new Donor("D1", "First", 30, 60.0,
                                     BloodType.A_POS, null), duplicate)),
                     new ArrayList<BloodUnit>(), new ArrayList<BloodRequest>(),
-                    new ArrayList<FulfilmentRecord>());
+                    new ArrayList<FulfilmentRecord>(), new ArrayList<>());
 
             assertThrows(IOException.class, () -> store.save(invalid));
             assertEquals(before, Files.readString(directory.resolve("lifeflow.json")));

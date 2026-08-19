@@ -21,6 +21,8 @@ import lifeflow.model.LifeFlowState;
 import lifeflow.model.RegularRequest;
 import lifeflow.model.RequestStatus;
 import lifeflow.model.UnitStatus;
+import lifeflow.model.exception.EntityNotFoundException;
+import lifeflow.model.exception.ValidationException;
 import lifeflow.service.DataValidator;
 import lifeflow.service.DonationPolicy;
 import org.junit.jupiter.api.Test;
@@ -68,9 +70,9 @@ final class DomainReliabilityTest {
         LifeFlowState stale = state(List.of(donor), List.of(linked), List.of(), List.of());
         LifeFlowState brokenLink = state(List.of(donor), List.of(orphan), List.of(), List.of());
 
-        assertThrows(IllegalArgumentException.class,
+        assertThrows(ValidationException.class,
                 () -> DataValidator.validate(stale, TODAY));
-        assertThrows(IllegalArgumentException.class,
+        assertThrows(EntityNotFoundException.class,
                 () -> DataValidator.validate(brokenLink, TODAY));
     }
 
@@ -88,7 +90,7 @@ final class DomainReliabilityTest {
         LifeFlowState complete = state(List.of(donor), List.of(used),
                 List.of(request), List.of(audit));
 
-        assertThrows(IllegalArgumentException.class,
+        assertThrows(ValidationException.class,
                 () -> DataValidator.validate(withoutAudit, TODAY));
         DataValidator.validate(complete, TODAY);
     }
@@ -106,10 +108,10 @@ final class DomainReliabilityTest {
         FulfilmentRecord afterExpiry = new FulfilmentRecord("R1",
                 TODAY.minusDays(1), List.of("U1"));
 
-        assertThrows(IllegalArgumentException.class, () -> DataValidator.validate(
+        assertThrows(ValidationException.class, () -> DataValidator.validate(
                 state(List.of(donor), List.of(used), List.of(request),
                         List.of(beforeRequest)), TODAY));
-        assertThrows(IllegalArgumentException.class, () -> DataValidator.validate(
+        assertThrows(ValidationException.class, () -> DataValidator.validate(
                 state(List.of(donor), List.of(used), List.of(request),
                         List.of(afterExpiry)), TODAY));
     }

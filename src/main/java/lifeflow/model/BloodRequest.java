@@ -1,6 +1,7 @@
 package lifeflow.model;
 
 import java.time.LocalDate;
+import java.util.Locale;
 
 /** Common state and behavior shared by all blood-request types. */
 public abstract class BloodRequest implements Identifiable {
@@ -61,5 +62,24 @@ public abstract class BloodRequest implements Identifiable {
         this.requesterName = requesterName;
         this.bloodType = bloodType;
         this.quantity = quantity;
+    }
+
+    @Override
+    public String toString() {
+        return String.format("%s{id='%s', requester='%s', bloodType=%s, "
+                + "quantity=%d, status=%s}", getKind(), id, requesterName,
+                bloodType, quantity, status);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof BloodRequest other)) return false;
+        return id.equalsIgnoreCase(other.id);
+    }
+
+    @Override
+    public int hashCode() {
+        return id.toLowerCase(Locale.ROOT).hashCode();
     }
 }

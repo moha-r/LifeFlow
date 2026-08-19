@@ -45,7 +45,6 @@ public final class DashboardPanel extends JPanel {
     private final JLabel expiringSoonValue = compactMetricValue("expiringSoonValue");
     private final DefaultTableModel inventoryModel = UiComponents.readOnlyModel(
             "Blood Type", "Available", "Stock Level", "Status");
-    private final PieChartPanel pieChart = new PieChartPanel();
     private final DefaultTableModel eligibleDonorsModel = new javax.swing.table.DefaultTableModel(new String[]{"Donor", "Type", "Eligible Since"}, 0) { @Override public boolean isCellEditable(int row, int col) { return false; } };
     private final DefaultTableModel requestModel = UiComponents.readOnlyModel(
             "ID", "Requester", "Blood Type", "Qty", "Status");
@@ -77,21 +76,6 @@ public final class DashboardPanel extends JPanel {
                                      Runnable addRequest) {
         JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 7, 0));
         actions.setOpaque(false);
-        JButton exportBtn = UiComponents.secondaryButton("Export CSV");
-        exportBtn.addActionListener(e -> {
-            javax.swing.JFileChooser chooser = new javax.swing.JFileChooser();
-            chooser.setDialogTitle("Save Inventory Report");
-            chooser.setSelectedFile(new java.io.File("inventory_report.csv"));
-            if (chooser.showSaveDialog(this) == javax.swing.JFileChooser.APPROVE_OPTION) {
-                try {
-                    lifeflow.service.CsvReportExporter.exportInventory(chooser.getSelectedFile().toPath(), controller.getStateSnapshot(), controller.today());
-                    javax.swing.JOptionPane.showMessageDialog(this, "Report exported successfully.", "Success", javax.swing.JOptionPane.INFORMATION_MESSAGE);
-                } catch (Exception ex) {
-                    javax.swing.JOptionPane.showMessageDialog(this, "Export failed: " + ex.getMessage(), "Error", javax.swing.JOptionPane.ERROR_MESSAGE);
-                }
-            }
-        });
-        actions.add(exportBtn);
         JButton donor = UiComponents.secondaryButton("+ Donor");
         JButton unit = UiComponents.secondaryButton("+ Unit");
         JButton request = UiComponents.primaryButton("+ Request");
@@ -228,11 +212,6 @@ public final class DashboardPanel extends JPanel {
         scroll.setBorder(null);
         panel.add(scroll, java.awt.BorderLayout.CENTER);
         
-        javax.swing.JPanel pieContainer = new javax.swing.JPanel(new java.awt.BorderLayout());
-        pieContainer.setOpaque(false);
-        pieContainer.add(pieChart, java.awt.BorderLayout.CENTER);
-        panel.add(pieContainer, java.awt.BorderLayout.EAST);
-        
         return panel;
     }
 
@@ -354,7 +333,6 @@ public final class DashboardPanel extends JPanel {
                 expiringByType.merge(unit.getBloodType(), 1, Integer::sum);
             }
         }
-        pieChart.updateData(stock);
         eligibleDonorsModel.setRowCount(0);
         for (lifeflow.model.Donor d : snapshot.getDonors()) {
             lifeflow.model.EligibilityResult er = controller.checkDonorEligibility(d.getId(), today);

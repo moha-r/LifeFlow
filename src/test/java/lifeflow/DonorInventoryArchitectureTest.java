@@ -17,6 +17,8 @@ import lifeflow.model.Donor;
 import lifeflow.model.InventoryState;
 import lifeflow.model.LifeFlowState;
 import lifeflow.model.UnitStatus;
+import lifeflow.model.exception.EligibilityException;
+import lifeflow.model.exception.ValidationException;
 import lifeflow.persistence.LifeFlowStore;
 import lifeflow.persistence.StorageInfo;
 import lifeflow.service.DataValidator;
@@ -51,7 +53,7 @@ final class DonorInventoryArchitectureTest {
         controller.addBloodUnit("U000001", "D000001", TODAY.minusMonths(1));
         long revision = controller.getRevision();
 
-        assertThrows(IllegalArgumentException.class,
+        assertThrows(EligibilityException.class,
                 () -> controller.addBloodUnit("U000002", "D000001", TODAY));
         assertEquals(revision, controller.getRevision());
         assertEquals(1, controller.getUnits().size());
@@ -96,9 +98,9 @@ final class DonorInventoryArchitectureTest {
         LifeFlowState invalid = new LifeFlowState(0,
                 new ArrayList<>(java.util.List.of(donor)),
                 new ArrayList<>(java.util.List.of(duplicate)), new ArrayList<>(),
-                new ArrayList<>());
+                new ArrayList<>(), new ArrayList<>());
 
-        assertThrows(IllegalArgumentException.class,
+        assertThrows(ValidationException.class,
                 () -> DataValidator.validate(invalid, TODAY));
     }
 

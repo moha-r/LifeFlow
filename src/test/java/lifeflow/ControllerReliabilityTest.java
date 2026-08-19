@@ -14,6 +14,8 @@ import lifeflow.model.EligibilityReason;
 import lifeflow.model.LifeFlowState;
 import lifeflow.model.MatchOutcome;
 import lifeflow.model.UnitStatus;
+import lifeflow.model.exception.EligibilityException;
+import lifeflow.model.exception.ValidationException;
 import lifeflow.persistence.LifeFlowStore;
 import lifeflow.persistence.StorageInfo;
 import lifeflow.service.LifeFlowController;
@@ -159,7 +161,7 @@ final class ControllerReliabilityTest {
         controller.addDonor("D1", "Aisha", 25, 55.0, BloodType.A_POS, null);
         int saves = store.saveCount;
 
-        assertThrows(IllegalArgumentException.class,
+        assertThrows(EligibilityException.class,
                 () -> controller.addBloodUnit("U1", "D1",
                         LocalDate.now().plusDays(1)));
         assertEquals(saves, store.saveCount);
@@ -173,7 +175,7 @@ final class ControllerReliabilityTest {
         controller.addRequest("R1", "Ward", BloodType.A_POS, 1, false);
         int saves = store.saveCount;
 
-        assertThrows(IllegalArgumentException.class,
+        assertThrows(ValidationException.class,
                 () -> controller.processNextRequest(LocalDate.now().minusDays(1)));
         assertEquals(saves, store.saveCount);
     }
@@ -183,10 +185,10 @@ final class ControllerReliabilityTest {
         RecordingStore store = new RecordingStore();
         LifeFlowController controller = new LifeFlowController(new LifeFlowState(), store);
 
-        assertThrows(IllegalArgumentException.class,
+        assertThrows(ValidationException.class,
                 () -> controller.addDonor("D1", "Aisha", 25,
                         Double.NaN, BloodType.A_POS, null));
-        assertThrows(IllegalArgumentException.class,
+        assertThrows(ValidationException.class,
                 () -> controller.addDonor("D2", "Maya", 25,
                         Double.POSITIVE_INFINITY, BloodType.A_POS, null));
     }

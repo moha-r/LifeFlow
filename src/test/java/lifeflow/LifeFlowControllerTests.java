@@ -6,6 +6,7 @@ import java.time.LocalDate;
 import lifeflow.model.BloodType;
 import lifeflow.model.Donor;
 import lifeflow.model.LifeFlowState;
+import lifeflow.model.exception.LifeFlowException;
 import lifeflow.persistence.JsonLifeFlowStore;
 import lifeflow.service.LifeFlowController;
 
@@ -46,7 +47,7 @@ final class LifeFlowControllerTests {
         try {
             controller.addDonor("d1", "Duplicate", 30, 60.0,
                     BloodType.O_POS, null);
-        } catch (IllegalArgumentException exception) {
+        } catch (LifeFlowException exception) {
             rejected = exception.getMessage().contains("already exists");
         }
         assert rejected : "Donor IDs must be unique ignoring case";
@@ -76,7 +77,7 @@ final class LifeFlowControllerTests {
         boolean rejected = false;
         try {
             controller.addBloodUnit("U1", "D1", LocalDate.now());
-        } catch (IllegalArgumentException exception) {
+        } catch (LifeFlowException exception) {
             rejected = exception.getMessage().contains("between 18 and 60");
         }
         assert rejected : "Ineligible donors cannot create blood units";
@@ -102,7 +103,7 @@ final class LifeFlowControllerTests {
         try {
             controller.updateDonor("D1", "Still Valid", 27, 59.0,
                     BloodType.O_NEG, donation);
-        } catch (IllegalArgumentException exception) {
+        } catch (LifeFlowException exception) {
             rejected = exception.getMessage().contains("blood type");
         }
         assert rejected : "A donor blood type cannot change after units exist";
@@ -124,7 +125,7 @@ final class LifeFlowControllerTests {
         boolean rejected = false;
         try {
             controller.updateUnusedBloodUnitDonationDate("U1", donation.minusDays(2));
-        } catch (IllegalArgumentException exception) {
+        } catch (LifeFlowException exception) {
             rejected = exception.getMessage().contains("used");
         }
         assert rejected : "Used blood units must be read-only";
@@ -169,7 +170,7 @@ final class LifeFlowControllerTests {
         boolean rejected = false;
         try {
             controller.updatePendingRequest("R1", "Changed", BloodType.B_POS, 2);
-        } catch (IllegalArgumentException exception) {
+        } catch (LifeFlowException exception) {
             rejected = exception.getMessage().contains("fulfilled");
         }
         assert rejected : "Fulfilled requests must be read-only";

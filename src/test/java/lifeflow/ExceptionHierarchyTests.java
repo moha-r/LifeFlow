@@ -47,7 +47,7 @@ class ExceptionHierarchyTests {
 
     @Test
     void allExceptionsExtendLifeFlowException() {
-        assertInstanceOf(LifeFlowException.class, new DuplicateIdException("X", "1", new java.util.ArrayList<>()));
+        assertInstanceOf(LifeFlowException.class, new DuplicateIdException("X", "1"));
         assertInstanceOf(LifeFlowException.class, new EntityNotFoundException("X", "1"));
         assertInstanceOf(LifeFlowException.class, new ValidationException("msg", "f"));
         assertInstanceOf(LifeFlowException.class,

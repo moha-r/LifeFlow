@@ -1,6 +1,7 @@
 package lifeflow.model;
 
 import java.time.LocalDate;
+import java.util.Locale;
 
 /** Represents one whole-blood unit stored by the simulation. */
 public class BloodUnit implements Identifiable {
@@ -88,18 +89,18 @@ public class BloodUnit implements Identifiable {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        BloodUnit bloodUnit = (BloodUnit) o;
-        return id.equals(bloodUnit.id);
+        if (!(o instanceof BloodUnit bloodUnit)) return false;
+        return id.equalsIgnoreCase(bloodUnit.id);
     }
 
     @Override
     public int hashCode() {
-        return java.util.Objects.hash(id);
+        return id.toLowerCase(Locale.ROOT).hashCode();
     }
 
     @Override
     public String toString() {
-        return id;
+        return String.format("BloodUnit{id='%s', bloodType=%s, status=%s}",
+                id, bloodType, status);
     }
 }
