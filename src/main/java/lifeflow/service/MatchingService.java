@@ -7,7 +7,6 @@ import java.util.List;
 import lifeflow.model.BloodRequest;
 import lifeflow.model.BloodUnit;
 import lifeflow.model.RequestStatus;
-import lifeflow.model.UnitStatus;
 
 /** Selects pending requests and performs exact blood-group matching. */
 public class MatchingService {
@@ -43,10 +42,10 @@ public class MatchingService {
         ArrayList<BloodUnit> matched = new ArrayList<>();
         for (int index = 0; index < request.getQuantity(); index++) {
             BloodUnit unit = available.get(index);
-            unit.setStatus(UnitStatus.USED);
+            unit.markUsed();
             matched.add(unit);
         }
-        request.setStatus(RequestStatus.FULFILLED);
+        request.markFulfilled();
         return matched;
     }
 

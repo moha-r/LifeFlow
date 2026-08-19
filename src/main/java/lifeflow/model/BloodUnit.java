@@ -73,7 +73,8 @@ public class BloodUnit {
         this.expiryDate = expiryDate;
     }
 
-    public void setStatus(UnitStatus status) {
-        this.status = status;
+    /** Marks this unit as consumed by a fulfilled blood request. */
+    public void markUsed() {
+        status = UnitStatus.USED;
     }
 }

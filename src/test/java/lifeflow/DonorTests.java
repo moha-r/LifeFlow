@@ -65,10 +65,6 @@ final class DonorTests {
                 BloodType.O_NEG, null);
         LocalDate donationDate = LocalDate.of(2026, 8, 3);
 
-        donor.setName("Nur A.");
-        donor.setAge(25);
-        donor.setWeightKg(53.0);
-        donor.setBloodType(BloodType.O_POS);
         donor.updateDetails("Nur A.", 25, 53.0, BloodType.O_POS, donationDate);
 
         assert donor.getId().equals("D006");

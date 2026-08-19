@@ -39,32 +39,16 @@ public class Donor {
         return name;
     }
 
-    public void setName(String name) {
-        this.name = name;
-    }
-
     public int getAge() {
         return age;
-    }
-
-    public void setAge(int age) {
-        this.age = age;
     }
 
     public double getWeightKg() {
         return weightKg;
     }
 
-    public void setWeightKg(double weightKg) {
-        this.weightKg = weightKg;
-    }
-
     public BloodType getBloodType() {
         return bloodType;
-    }
-
-    public void setBloodType(BloodType bloodType) {
-        this.bloodType = bloodType;
     }
 
     public LocalDate getExternalLastDonationDate() {

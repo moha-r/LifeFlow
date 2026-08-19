@@ -34,7 +34,7 @@ final class BloodRequestTests {
         BloodRequest request = new RegularRequest("R010", "Hospital C",
                 BloodType.AB_POS, 2, date, RequestStatus.PENDING);
 
-        request.setStatus(RequestStatus.FULFILLED);
+        request.markFulfilled();
 
         assert request.getId().equals("R010");
         assert request.getRequesterName().equals("Hospital C");

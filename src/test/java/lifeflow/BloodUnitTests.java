@@ -31,7 +31,7 @@ final class BloodUnitTests {
         BloodUnit unit = new BloodUnit("U010", "D010", BloodType.B_NEG,
                 donationDate, expiryDate, UnitStatus.AVAILABLE);
 
-        unit.setStatus(UnitStatus.USED);
+        unit.markUsed();
 
         assert unit.getId().equals("U010");
         assert unit.getDonorId().equals("D010");

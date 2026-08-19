@@ -51,8 +51,9 @@ public abstract class BloodRequest {
         return status;
     }
 
-    public void setStatus(RequestStatus status) {
-        this.status = status;
+    /** Marks this request as completely fulfilled by matched units. */
+    public void markFulfilled() {
+        status = RequestStatus.FULFILLED;
     }
 
     public void updatePendingDetails(String requesterName, BloodType bloodType,
