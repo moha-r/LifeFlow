@@ -3,27 +3,35 @@ digraph LifeFlow {
   node [shape=record, fontname="Helvetica", fontsize=10, color="#8b1e2d", penwidth=1.5];
   edge [fontname="Helvetica", fontsize=9, color="#555555"];
 
-  BloodRequest [label="{BloodRequest (abstract)|- id : String\l- requesterName : String\l- bloodType : BloodType\l- quantity : int\l- requestDate : LocalDate\l- status : RequestStatus\l|+ getPriority() : int\l+ getKind() : String\l}"];
+  BloodRequest [label="{BloodRequest (abstract)|- id : String\l- requesterName : String\l- bloodType : BloodType\l- quantity : int\l- requestDate : LocalDate\l- status : RequestStatus\l|+ getPriority() : int\l+ getKind() : String\l+ markFulfilled() : void\l}"];
   RegularRequest [label="{RegularRequest||+ getPriority() : int\l+ getKind() : String\l}"];
   EmergencyRequest [label="{EmergencyRequest||+ getPriority() : int\l+ getKind() : String\l}"];
-  Donor [label="{Donor|- id : String\l- name : String\l- age : int\l- weightKg : double\l- bloodType : BloodType\l- lastDonationDate : LocalDate\l|+ isEligible(LocalDate) : boolean\l+ recordDonation(LocalDate) : void\l}"];
-  BloodUnit [label="{BloodUnit|- id : String\l- donorId : String\l- bloodType : BloodType\l- donationDate : LocalDate\l- expiryDate : LocalDate\l- status : UnitStatus\l|+ isAvailable(LocalDate) : boolean\l}"];
-  BloodInventory [label="{BloodInventory|- units : ArrayList BloodUnit\l|+ addUnit(BloodUnit) : void\l+ getAvailableUnits(...) : ArrayList\l+ getStockCounts(...) : HashMap\l}"];
-  MatchingService [label="{MatchingService|- inventory : BloodInventory\l|+ findNextPending(...) : BloodRequest\l+ match(...) : ArrayList\l}"];
-  FileManager [label="{FileManager|- dataDirectory : Path\l|+ loadDonors() : ArrayList\l+ loadUnits() : ArrayList\l+ loadRequests() : ArrayList\l+ save...() : void\l}"];
-  LifeFlowController [label="{LifeFlowController|donors, requests, inventory\l|+ add/update records\l+ dashboard counts\l+ processNextRequest(...)\l+ saveAll()\l}"];
-  LifeFlowFrame [label="{LifeFlowFrame|Sidebar + CardLayout|Dashboard\lDonors\lInventory\lRequests\lMatching\l}"];
+  Donor [label="{Donor|- id : String\l- name : String\l- age : int\l- weightKg : double\l- bloodType : BloodType\l- externalLastDonationDate : LocalDate\l|+ isEligible(LocalDate) : EligibilityResult\l+ updateDetails(...) : void\l}"];
+  BloodUnit [label="{BloodUnit|- id : String\l- donorId : String\l- bloodType : BloodType\l- donationDate : LocalDate\l- expiryDate : LocalDate\l- status : UnitStatus\l|+ getInventoryState(LocalDate) : InventoryState\l+ correctDates(...) : void\l+ markUsed() : void\l}"];
+  LifeFlowState [label="{LifeFlowState|- revision : long\l- donors : ArrayList Donor\l- units : ArrayList BloodUnit\l- requests : ArrayList BloodRequest\l- fulfilments : ArrayList FulfilmentRecord\l|+ copy() : LifeFlowState\l}"];
+  BloodInventory [label="{BloodInventory|- units : ArrayList BloodUnit\l|+ from(List BloodUnit) : BloodInventory\l+ getAvailableUnits(...) : ArrayList\l+ getStockCounts(...) : HashMap\l}"];
+  MatchingService [label="{MatchingService|- inventory : BloodInventory\l|+ ORDER : Comparator BloodRequest\l+ findNextPending(...) : BloodRequest\l+ findNextFulfillable(...) : BloodRequest\l+ match(...) : ArrayList\l}"];
+  DataValidator [label="{DataValidator||+ validate(LifeFlowState, LocalDate) : void\l}"];
+  LifeFlowStore [label="{LifeFlowStore (interface)||+ load() : LifeFlowState\l+ save(LifeFlowState) : void\l+ restoreLatestBackup() : LifeFlowState\l+ getStorageInfo() : StorageInfo\l}"];
+  JsonLifeFlowStore [label="{JsonLifeFlowStore|- directory : Path\l|+ load() : LifeFlowState\l+ save(LifeFlowState) : void\l+ restoreLatestBackup() : LifeFlowState\l}"];
+  LifeFlowController [label="{LifeFlowController|state, store\l|+ add/update records\l+ getNextPendingRequest() : BloodRequest\l+ getNextFulfillableRequest() : BloodRequest\l+ processNextRequest(LocalDate) : MatchResult\l+ saveAll() : void\l}"];
+  LifeFlowFrame [label="{LifeFlowFrame\l|sidebar, cards, status bar\l}"];
+  FulfilmentRecord [label="{FulfilmentRecord|requestId, processedDate, units\l}"];
 
   RegularRequest -> BloodRequest [arrowhead=empty, label="extends"];
   EmergencyRequest -> BloodRequest [arrowhead=empty, label="extends"];
   Donor -> BloodUnit [label="creates 0..*"];
+  LifeFlowState -> Donor [arrowhead=diamond, label="owns"];
+  LifeFlowState -> BloodUnit [arrowhead=diamond, label="owns"];
+  LifeFlowState -> BloodRequest [arrowhead=diamond, label="owns"];
+  LifeFlowState -> FulfilmentRecord [arrowhead=diamond, label="owns"];
   BloodInventory -> BloodUnit [arrowhead=diamond, label="owns"];
   MatchingService -> BloodInventory [label="uses"];
   MatchingService -> BloodRequest [label="processes"];
-  FileManager -> Donor [label="loads/saves"];
-  FileManager -> BloodUnit [label="loads/saves"];
-  FileManager -> BloodRequest [label="loads/saves"];
+  LifeFlowStore -> JsonLifeFlowStore [arrowhead=empty, style=dashed, label="implements"];
   LifeFlowController -> MatchingService [label="coordinates"];
-  LifeFlowController -> FileManager [label="loads/saves"];
+  LifeFlowController -> BloodInventory [label="builds"];
+  LifeFlowController -> DataValidator [label="validates"];
+  LifeFlowController -> LifeFlowStore [label="loads/saves"];
   LifeFlowFrame -> LifeFlowController [label="uses"];
 }

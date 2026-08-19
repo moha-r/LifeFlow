@@ -7,9 +7,9 @@ demonstrating the required object-oriented concepts through real behaviour.
 
 ## Package responsibilities
 
-- `lifeflow.model`: state and single-object rules.
+- `lifeflow.model`: state aggregate, single-object rules, and result types.
 - `lifeflow.service`: inventory queries, matching, validation, and UI-facing operations.
-- `lifeflow.persistence`: text-file mapping only.
+- `lifeflow.persistence`: JSON mapping with integrity checks and automatic backup.
 - `lifeflow.ui`: dashboard, sidebar navigation, data pages, dialogs, and theming.
 - `lifeflow.Main`: application start-up and data loading.
 
@@ -23,9 +23,8 @@ classDiagram
         -int age
         -double weightKg
         -BloodType bloodType
-        -LocalDate lastDonationDate
-        +isEligible(LocalDate) boolean
-        +recordDonation(LocalDate) void
+        -LocalDate externalLastDonationDate
+        +isEligible(LocalDate) EligibilityResult
         +updateDetails(...) void
     }
     class BloodUnit {
@@ -35,8 +34,9 @@ classDiagram
         -LocalDate donationDate
         -LocalDate expiryDate
         -UnitStatus status
-        +isAvailable(LocalDate) boolean
-        +updateExpiryDate(LocalDate) void
+        +getInventoryState(LocalDate) InventoryState
+        +correctDates(LocalDate, LocalDate) void
+        +markUsed() void
     }
     class BloodRequest {
         <<abstract>>
@@ -48,66 +48,106 @@ classDiagram
         -RequestStatus status
         +getPriority() int
         +getKind() String
+        +markFulfilled() void
         +updatePendingDetails(...) void
     }
     class RegularRequest
     class EmergencyRequest
+    class LifeFlowState {
+        -long revision
+        -ArrayList~Donor~ donors
+        -ArrayList~BloodUnit~ units
+        -ArrayList~BloodRequest~ requests
+        -ArrayList~FulfilmentRecord~ fulfilments
+        +copy() LifeFlowState
+    }
     class BloodInventory {
         -ArrayList~BloodUnit~ units
+        +from(List~BloodUnit~) BloodInventory
         +getAvailableUnits(BloodType, LocalDate) ArrayList~BloodUnit~
         +getStockCounts(LocalDate) HashMap~BloodType,Integer~
     }
     class MatchingService {
+        +ORDER Comparator~BloodRequest~
         +findNextPending(List~BloodRequest~) BloodRequest
+        +findNextFulfillable(List~BloodRequest~, LocalDate) BloodRequest
         +match(BloodRequest, LocalDate) ArrayList~BloodUnit~
     }
-    class FileManager
+    class DataValidator
+    class LifeFlowStore {
+        <<interface>>
+        +load() LifeFlowState
+        +save(LifeFlowState) void
+        +restoreLatestBackup() LifeFlowState
+        +getStorageInfo() StorageInfo
+    }
+    class JsonLifeFlowStore {
+        +load() LifeFlowState
+        +save(LifeFlowState) void
+        +restoreLatestBackup() LifeFlowState
+    }
     class LifeFlowController
     class LifeFlowFrame
 
     BloodRequest <|-- RegularRequest
     BloodRequest <|-- EmergencyRequest
     Donor "1" --> "0..*" BloodUnit
+    LifeFlowState o-- Donor
+    LifeFlowState o-- BloodUnit
+    LifeFlowState o-- BloodRequest
+    LifeFlowState o-- FulfilmentRecord
     BloodInventory o-- BloodUnit
     MatchingService --> BloodInventory
     MatchingService --> BloodRequest
-    FileManager --> Donor
-    FileManager --> BloodUnit
-    FileManager --> BloodRequest
+    LifeFlowStore <|.. JsonLifeFlowStore
     LifeFlowController --> MatchingService
-    LifeFlowController --> FileManager
+    LifeFlowController --> BloodInventory
+    LifeFlowController --> DataValidator
+    LifeFlowController --> LifeFlowStore
     LifeFlowFrame --> LifeFlowController
 ```
 
 ## Main data flow
 
 ```text
-Text files -> FileManager -> LifeFlowController -> dashboard and tables
+lifeflow.json -> JsonLifeFlowStore -> LifeFlowState -> LifeFlowController -> panels
 Swing dialog -> controller validation -> model/service operation
-Updated collections -> FileManager -> text files -> refresh all five screens
+Updated state -> JsonLifeFlowStore -> lifeflow.json + dated backup
 ```
 
 ## UI composition
 
 `LifeFlowFrame` contains the fixed sidebar, a `CardLayout`, and the temporary
 status bar. `DashboardPanel` shows live counts, blood-group availability, quick
-actions, and the next priority request. Donors, inventory, requests, and
-matching each use a focused panel, while `UiTheme` and `UiComponents` keep
-colors, typography, buttons, cards, tables, and status badges consistent.
+actions, and the next pending and next fulfilable requests. Donors, inventory,
+requests, and matching each use a focused panel, while `UiTheme` and
+`UiComponents` keep colors, typography, buttons, cards, tables, and status
+badges consistent. `PageShell` and `BoundedContentPanel` keep every page on a
+shared centered layout.
 
-## Persistence schemas
+## Persistence schema
+
+`JsonLifeFlowStore` writes a single `lifeflow.json` envelope:
 
 ```text
-donors.txt
-id|name|age|weightKg|bloodType|lastDonationDate
-
-blood_units.txt
-id|donorId|bloodType|donationDate|expiryDate|status
-
-requests.txt
-id|kind|requesterName|bloodType|quantity|requestDate|status
+{
+  "formatVersion": 2,
+  "revision": <long>,
+  "savedAt": <ISO timestamp>,
+  "checksum": <SHA-256 of checksum content>,
+  "data": {
+    "donors": [...],
+    "bloodUnits": [...],
+    "requests": [...],
+    "fulfilments": [...]
+  }
+}
 ```
 
-Dates use `yyyy-MM-dd`. Missing files represent empty collections. A malformed
-line stops start-up and reports its file and line number to prevent silent data
-loss.
+The checksum covers the format version, revision, and data payload; a mismatch
+is treated as corruption. Every save also writes a timestamped backup file, and
+`restoreLatestBackup()` recovers the newest valid copy when the main file is
+corrupt. Format version 1 files are migrated transparently on load. Any corrupt
+content is surfaced as a clean `IOException` with the offending file name rather
+than a crash. Dates use `yyyy-MM-dd`, and missing or empty files represent empty
+collections.
