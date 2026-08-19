@@ -10,6 +10,12 @@ import lifeflow.model.RequestStatus;
 
 /** Selects pending requests and performs exact blood-group matching. */
 public class MatchingService {
+    /** Highest priority first, then oldest request date, then case-insensitive ID. */
+    public static final Comparator<BloodRequest> ORDER =
+            Comparator.comparingInt(BloodRequest::getPriority).reversed()
+                    .thenComparing(BloodRequest::getRequestDate)
+                    .thenComparing(BloodRequest::getId, String.CASE_INSENSITIVE_ORDER);
+
     private final BloodInventory inventory;
 
     public MatchingService(BloodInventory inventory) {
@@ -52,10 +58,7 @@ public class MatchingService {
     private static List<BloodRequest> orderedPending(List<BloodRequest> requests) {
         return requests.stream()
                 .filter(request -> request.getStatus() == RequestStatus.PENDING)
-                .sorted(Comparator.comparingInt(BloodRequest::getPriority).reversed()
-                        .thenComparing(BloodRequest::getRequestDate)
-                        .thenComparing(BloodRequest::getId,
-                                String.CASE_INSENSITIVE_ORDER))
+                .sorted(ORDER)
                 .toList();
     }
 }

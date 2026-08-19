@@ -4,12 +4,21 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.List;
 import lifeflow.model.BloodType;
 import lifeflow.model.BloodUnit;
 
 /** Owns the in-memory collection of blood units. */
 public class BloodInventory {
     private final ArrayList<BloodUnit> units = new ArrayList<>();
+
+    public static BloodInventory from(List<BloodUnit> source) {
+        BloodInventory inventory = new BloodInventory();
+        for (BloodUnit unit : source) {
+            inventory.addUnit(unit);
+        }
+        return inventory;
+    }
 
     public void addUnit(BloodUnit unit) {
         units.add(unit);

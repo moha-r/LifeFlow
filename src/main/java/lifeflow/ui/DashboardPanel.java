@@ -382,30 +382,14 @@ public final class DashboardPanel extends JPanel {
     }
 
     private static BloodRequest nextPending(LifeFlowState snapshot) {
-        BloodRequest next = null;
-        for (BloodRequest request : snapshot.getRequests()) {
-            if (request.getStatus() != RequestStatus.PENDING) {
-                continue;
-            }
-            if (next == null || request.getPriority() > next.getPriority()
-                    || (request.getPriority() == next.getPriority()
-                    && (request.getRequestDate().isBefore(next.getRequestDate())
-                    || (request.getRequestDate().equals(next.getRequestDate())
-                    && request.getId().compareToIgnoreCase(next.getId()) < 0)))) {
-                next = request;
-            }
-        }
-        return next;
+        return new MatchingService(BloodInventory.from(snapshot.getUnits()))
+                .findNextPending(snapshot.getRequests());
     }
 
     private static BloodRequest nextFulfillable(LifeFlowState snapshot,
                                                  LocalDate date) {
-        BloodInventory inventory = new BloodInventory();
-        for (BloodUnit unit : snapshot.getUnits()) {
-            inventory.addUnit(unit);
-        }
-        return new MatchingService(inventory).findNextFulfillable(
-                snapshot.getRequests(), date);
+        return new MatchingService(BloodInventory.from(snapshot.getUnits()))
+                .findNextFulfillable(snapshot.getRequests(), date);
     }
 
     private static String stockStatus(int count) {

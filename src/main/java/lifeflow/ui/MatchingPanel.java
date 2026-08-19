@@ -344,10 +344,7 @@ public final class MatchingPanel extends JPanel {
 
     public void refreshData() {
         LifeFlowState snapshot = controller.getStateSnapshot();
-        BloodInventory inventory = new BloodInventory();
-        for (BloodUnit unit : snapshot.getUnits()) {
-            inventory.addUnit(unit);
-        }
+        BloodInventory inventory = BloodInventory.from(snapshot.getUnits());
         MatchingService matching = new MatchingService(inventory);
         BloodRequest request = matching.findNextFulfillable(snapshot.getRequests(),
                 controller.today());

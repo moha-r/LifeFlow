@@ -211,7 +211,7 @@ public final class LifeFlowController implements AutoCloseable {
         }
         ArrayList<BloodUnit> units = state.getUnits();
         ArrayList<BloodRequest> requests = state.getRequests();
-        BloodInventory inventory = inventoryFrom(units);
+        BloodInventory inventory = BloodInventory.from(units);
         MatchingService service = new MatchingService(inventory);
         BloodRequest highestPriority = service.findNextPending(requests);
         if (highestPriority == null) {
@@ -282,11 +282,11 @@ public final class LifeFlowController implements AutoCloseable {
     }
 
     public HashMap<BloodType, Integer> getStockCounts(LocalDate date) {
-        return inventoryFrom(state.getUnits()).getStockCounts(date);
+        return BloodInventory.from(state.getUnits()).getStockCounts(date);
     }
 
     public ArrayList<BloodUnit> getAvailableUnits(BloodType type, LocalDate date) {
-        return inventoryFrom(state.getUnits()).getAvailableUnits(type, date);
+        return BloodInventory.from(state.getUnits()).getAvailableUnits(type, date);
     }
 
     public String getNextUnitId() {
@@ -319,13 +319,7 @@ public final class LifeFlowController implements AutoCloseable {
     }
 
     private MatchingService matchingService(ArrayList<BloodUnit> units) {
-        return new MatchingService(inventoryFrom(units));
-    }
-
-    private static BloodInventory inventoryFrom(List<BloodUnit> units) {
-        BloodInventory inventory = new BloodInventory();
-        units.forEach(inventory::addUnit);
-        return inventory;
+        return new MatchingService(BloodInventory.from(units));
     }
 
     private static Donor findDonor(List<Donor> donors, String id) {
