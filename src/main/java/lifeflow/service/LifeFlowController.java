@@ -228,14 +228,14 @@ public final class LifeFlowController implements AutoCloseable {
         }
         BloodRequest request = service.findNextFulfillable(requests, date);
         if (request == null) {
+            int available = availableFor(highestPriority, inventory, date);
             return new MatchResult(MatchOutcome.INSUFFICIENT_STOCK, highestPriority,
-                    List.of(), availableFor(highestPriority, inventory, date),
+                    List.of(), available,
                     "No pending request can be fulfilled in full. "
                             + highestPriority.getId() + " needs "
                             + highestPriority.getQuantity() + " unit(s) of "
                             + highestPriority.getBloodType() + ", but only "
-                            + availableFor(highestPriority, inventory, date)
-                            + " are available.");
+                            + available + " are available.");
         }
         if (date.isBefore(request.getRequestDate())) {
             throw new IllegalArgumentException(
