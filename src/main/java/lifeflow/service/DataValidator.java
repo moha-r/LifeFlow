@@ -185,7 +185,7 @@ public final class DataValidator {
             for (String unitId : record.unitIds()) {
                 BloodUnit unit = unitsById.get(key(unitId));
                 if (unit == null || unit.getStatus() != UnitStatus.USED
-                        || unit.getBloodType() != request.getBloodType()
+                        || !request.getBloodType().canReceiveFrom(unit.getBloodType())
                         || record.processedDate().isBefore(unit.getDonationDate())
                         || record.processedDate().isAfter(unit.getExpiryDate())) {
                     throw new ValidationException(
