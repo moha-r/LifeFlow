@@ -5,11 +5,17 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.fasterxml.jackson.databind.MapperFeature;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.databind.json.JsonMapper;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.MessageDigest;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import lifeflow.model.BloodRequest;
@@ -176,6 +182,134 @@ final class JsonLifeFlowStoreTest {
         try (JsonLifeFlowStore store = new JsonLifeFlowStore(directory)) {
             assertThrows(IOException.class, store::load);
         }
+    }
+
+    @Test
+    void corruptDonorBloodTypeLoadsAsIOExceptionInsteadOfCrashing() throws Exception {
+        JsonLifeFlowStore.Payload payload = new JsonLifeFlowStore.Payload();
+        JsonLifeFlowStore.DonorData donor = new JsonLifeFlowStore.DonorData();
+        donor.id = "D1";
+        donor.name = "Aisha";
+        donor.age = 25;
+        donor.weightKg = 55.0;
+        donor.bloodType = null;
+        payload.donors.add(donor);
+        writeTamperedEnvelope(payload, false);
+
+        try (JsonLifeFlowStore store = new JsonLifeFlowStore(directory)) {
+            IOException failure = assertThrows(IOException.class, store::load);
+            assertTrue(failure.getMessage().contains("invalid LifeFlow data"));
+        }
+    }
+
+    @Test
+    void invalidDonorDateLoadsAsIOExceptionInsteadOfCrashing() throws Exception {
+        JsonLifeFlowStore.Payload payload = new JsonLifeFlowStore.Payload();
+        JsonLifeFlowStore.DonorData donor = new JsonLifeFlowStore.DonorData();
+        donor.id = "D1";
+        donor.name = "Aisha";
+        donor.age = 25;
+        donor.weightKg = 55.0;
+        donor.bloodType = "A_POS";
+        donor.externalLastDonationDate = "2026-13-99";
+        payload.donors.add(donor);
+        writeTamperedEnvelope(payload, false);
+
+        try (JsonLifeFlowStore store = new JsonLifeFlowStore(directory)) {
+            IOException failure = assertThrows(IOException.class, store::load);
+            assertTrue(failure.getMessage().contains("invalid LifeFlow data"));
+        }
+    }
+
+    @Test
+    void unknownUnitEnumLoadsAsIOExceptionInsteadOfCrashing() throws Exception {
+        JsonLifeFlowStore.Payload payload = new JsonLifeFlowStore.Payload();
+        JsonLifeFlowStore.UnitData unit = new JsonLifeFlowStore.UnitData();
+        unit.id = "U1";
+        unit.donorId = "D1";
+        unit.bloodType = "O_POS";
+        unit.donationDate = "2026-08-01";
+        unit.expiryDate = "2026-09-05";
+        unit.status = "MYSTERY";
+        payload.bloodUnits.add(unit);
+        writeTamperedEnvelope(payload, false);
+
+        try (JsonLifeFlowStore store = new JsonLifeFlowStore(directory)) {
+            IOException failure = assertThrows(IOException.class, store::load);
+            assertTrue(failure.getMessage().contains("invalid LifeFlow data"));
+        }
+    }
+
+    @Test
+    void corruptLegacyBackupLoadsAsIOExceptionInsteadOfCrashing() throws Exception {
+        JsonLifeFlowStore.LegacyPayload payload = new JsonLifeFlowStore.LegacyPayload();
+        JsonLifeFlowStore.LegacyDonorData donor = new JsonLifeFlowStore.LegacyDonorData();
+        donor.id = "D1";
+        donor.name = "Aisha";
+        donor.age = 25;
+        donor.weightKg = 55.0;
+        donor.bloodType = "A_POS";
+        donor.lastDonationDate = "2026-13-99";
+        payload.donors.add(donor);
+        writeTamperedEnvelope(payload, true);
+
+        try (JsonLifeFlowStore store = new JsonLifeFlowStore(directory)) {
+            IOException failure = assertThrows(IOException.class, store::load);
+            assertTrue(failure.getMessage().contains("could not be migrated"));
+        }
+    }
+
+    private void writeTamperedEnvelope(Object payload, boolean legacy) throws Exception {
+        ObjectMapper canonical = JsonMapper.builder()
+                .enable(SerializationFeature.INDENT_OUTPUT)
+                .enable(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS)
+                .enable(MapperFeature.SORT_PROPERTIES_ALPHABETICALLY)
+                .build();
+        String checksum = tamperedChecksum(canonical, payload, legacy);
+        Object envelope;
+        if (legacy) {
+            JsonLifeFlowStore.LegacyEnvelope legacyEnvelope =
+                    new JsonLifeFlowStore.LegacyEnvelope();
+            legacyEnvelope.formatVersion = 1;
+            legacyEnvelope.revision = 1;
+            legacyEnvelope.savedAt = "2026-08-19T00:00:00";
+            legacyEnvelope.checksum = checksum;
+            legacyEnvelope.data = (JsonLifeFlowStore.LegacyPayload) payload;
+            envelope = legacyEnvelope;
+        } else {
+            JsonLifeFlowStore.Envelope versionTwo = new JsonLifeFlowStore.Envelope();
+            versionTwo.formatVersion = 2;
+            versionTwo.revision = 1;
+            versionTwo.savedAt = "2026-08-19T00:00:00";
+            versionTwo.checksum = checksum;
+            versionTwo.data = (JsonLifeFlowStore.Payload) payload;
+            envelope = versionTwo;
+        }
+        Files.writeString(directory.resolve("lifeflow.json"),
+                canonical.writeValueAsString(envelope));
+    }
+
+    private static String tamperedChecksum(ObjectMapper canonical, Object payload,
+                                           boolean legacy) throws Exception {
+        Object content;
+        if (legacy) {
+            JsonLifeFlowStore.LegacyChecksumContent legacyContent =
+                    new JsonLifeFlowStore.LegacyChecksumContent();
+            legacyContent.formatVersion = 1;
+            legacyContent.revision = 1;
+            legacyContent.data = (JsonLifeFlowStore.LegacyPayload) payload;
+            content = legacyContent;
+        } else {
+            JsonLifeFlowStore.ChecksumContent versionTwo =
+                    new JsonLifeFlowStore.ChecksumContent();
+            versionTwo.formatVersion = 2;
+            versionTwo.revision = 1;
+            versionTwo.data = (JsonLifeFlowStore.Payload) payload;
+            content = versionTwo;
+        }
+        MessageDigest digest = MessageDigest.getInstance("SHA-256");
+        return HexFormat.of().formatHex(
+                digest.digest(canonical.writeValueAsBytes(content)));
     }
 
     @Test

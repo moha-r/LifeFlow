@@ -200,7 +200,7 @@ public final class JsonLifeFlowStore implements LifeFlowStore {
                     ? "Migrated Version 1 data to Version 2; backup ready"
                     : "Migrated Version 1 data to Version 2; backup needs retry";
             return migrated;
-        } catch (IllegalArgumentException | IOException exception) {
+        } catch (RuntimeException | IOException exception) {
             detail = "Migration failed; original Version 1 file preserved";
             throw new IOException("Version 1 data could not be migrated: "
                     + exception.getMessage(), exception);
@@ -274,7 +274,7 @@ public final class JsonLifeFlowStore implements LifeFlowStore {
                 LifeFlowState state = fromLegacy(legacy.revision, legacy.data);
                 validateForStorage(state);
                 return state;
-            } catch (IllegalArgumentException exception) {
+            } catch (RuntimeException exception) {
                 throw new IOException("Legacy backup contains invalid LifeFlow data: "
                         + exception.getMessage(), exception);
             }
@@ -294,7 +294,7 @@ public final class JsonLifeFlowStore implements LifeFlowStore {
             LifeFlowState state = fromPayload(envelope.revision, envelope.data);
             validateForStorage(state);
             return state;
-        } catch (IllegalArgumentException exception) {
+        } catch (RuntimeException exception) {
             throw new IOException("JSON storage contains invalid LifeFlow data: "
                     + exception.getMessage(), exception);
         }
@@ -311,7 +311,7 @@ public final class JsonLifeFlowStore implements LifeFlowStore {
             verifyChecksum(envelope.checksum, legacyChecksum(envelope.formatVersion,
                     envelope.revision, envelope.data));
             return envelope;
-        } catch (IllegalArgumentException exception) {
+        } catch (RuntimeException exception) {
             throw new IOException("Version 1 JSON data is invalid: "
                     + exception.getMessage(), exception);
         }
