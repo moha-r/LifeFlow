@@ -199,6 +199,12 @@ public final class LifeFlowController implements AutoCloseable {
         return matchingService(state.getUnits()).findNextPending(state.getRequests());
     }
 
+    /** Returns the highest-priority pending request that can be fulfilled in full. */
+    public BloodRequest getNextFulfillableRequest() {
+        return matchingService(state.getUnits()).findNextFulfillable(
+                state.getRequests(), today());
+    }
+
     public MatchResult processNextRequest(LocalDate date) throws IOException {
         if (date == null) {
             throw new IllegalArgumentException("Processing date is required.");
@@ -207,12 +213,28 @@ public final class LifeFlowController implements AutoCloseable {
         ArrayList<BloodRequest> requests = state.getRequests();
         BloodInventory inventory = inventoryFrom(units);
         MatchingService service = new MatchingService(inventory);
-        BloodRequest request = service.findNextPending(requests);
-        if (request == null) {
+        BloodRequest highestPriority = service.findNextPending(requests);
+        if (highestPriority == null) {
             return new MatchResult(MatchOutcome.NO_PENDING_REQUEST, null, List.of(),
                     0, "No pending requests.");
         }
-        if (date.isAfter(today()) || date.isBefore(request.getRequestDate())) {
+        if (date.isAfter(today())) {
+            throw new IllegalArgumentException(
+                    "Processing date cannot be in the future.");
+        }
+        if (date.isBefore(highestPriority.getRequestDate())) {
+            throw new IllegalArgumentException(
+                    "Processing date must be between the request date and today.");
+        }
+        BloodRequest request = service.findNextFulfillable(requests, date);
+        if (request == null) {
+            int available = inventory.getAvailableUnits(highestPriority.getBloodType(),
+                    date).size();
+            return new MatchResult(MatchOutcome.INSUFFICIENT_STOCK, highestPriority,
+                    List.of(), available,
+                    "No pending request has enough compatible stock.");
+        }
+        if (date.isBefore(request.getRequestDate())) {
             throw new IllegalArgumentException(
                     "Processing date must be between the request date and today.");
         }

@@ -30,7 +30,9 @@ import lifeflow.model.EmergencyRequest;
 import lifeflow.model.InventoryState;
 import lifeflow.model.LifeFlowState;
 import lifeflow.model.RequestStatus;
+import lifeflow.service.BloodInventory;
 import lifeflow.service.LifeFlowController;
+import lifeflow.service.MatchingService;
 
 /** Dense operational overview for stock, demand, and the next safe action. */
 @SuppressWarnings("serial")
@@ -199,7 +201,8 @@ public final class DashboardPanel extends JPanel {
     }
 
     private JPanel buildPriorityPanel() {
-        JPanel panel = denseSection("Next priority request", "#1 in queue");
+        JPanel panel = denseSection("Next fulfilable request",
+                "Highest priority request with full stock");
         panel.setName("priorityRequestPanel");
         JPanel content = new JPanel();
         content.setBackground(UiTheme.SURFACE);
@@ -328,21 +331,40 @@ public final class DashboardPanel extends JPanel {
 
         requestModel.setRowCount(0);
         for (BloodRequest request : snapshot.getRequests()) {
-            String status = request.getStatus() == RequestStatus.PENDING
-                    && request instanceof EmergencyRequest
-                    ? "EMERGENCY" : request.getStatus().name();
+            String status;
+            if (request.getStatus() != RequestStatus.PENDING) {
+                status = request.getStatus().name();
+            } else if (stock.get(request.getBloodType()) >= request.getQuantity()) {
+                status = request instanceof EmergencyRequest
+                        ? "EMERGENCY · READY" : "READY TO MATCH";
+            } else {
+                status = request instanceof EmergencyRequest
+                        ? "EMERGENCY · WAITING" : "WAITING FOR STOCK";
+            }
             requestModel.addRow(new Object[]{request.getId(), request.getRequesterName(),
                     displayType(request.getBloodType()), request.getQuantity(), status});
         }
 
-        BloodRequest request = nextPending(snapshot);
+        BloodRequest request = nextFulfillable(snapshot, today);
         if (request == null) {
-            nextKind.setText("No pending requests");
-            nextKind.setForeground(UiTheme.NAVY);
-            nextRequester.setText("The queue is clear.");
-            requiredValue.setText("0");
-            availableValue.setText("0");
-            availableValue.setForeground(UiTheme.MUTED);
+            BloodRequest waiting = nextPending(snapshot);
+            if (waiting == null) {
+                nextKind.setText("No pending requests");
+                nextKind.setForeground(UiTheme.NAVY);
+                nextRequester.setText("The queue is clear.");
+                requiredValue.setText("0");
+                availableValue.setText("0");
+                availableValue.setForeground(UiTheme.MUTED);
+            } else {
+                int available = stock.get(waiting.getBloodType());
+                nextKind.setText("Waiting for stock · " + waiting.getId());
+                nextKind.setForeground(UiTheme.DANGER);
+                nextRequester.setText(waiting.getRequesterName() + " · "
+                        + displayType(waiting.getBloodType()));
+                requiredValue.setText(Integer.toString(waiting.getQuantity()));
+                availableValue.setText(Integer.toString(available));
+                availableValue.setForeground(UiTheme.DANGER);
+            }
             processButton.setEnabled(false);
         } else {
             int available = stock.get(request.getBloodType());
@@ -374,6 +396,16 @@ public final class DashboardPanel extends JPanel {
             }
         }
         return next;
+    }
+
+    private static BloodRequest nextFulfillable(LifeFlowState snapshot,
+                                                 LocalDate date) {
+        BloodInventory inventory = new BloodInventory();
+        for (BloodUnit unit : snapshot.getUnits()) {
+            inventory.addUnit(unit);
+        }
+        return new MatchingService(inventory).findNextFulfillable(
+                snapshot.getRequests(), date);
     }
 
     private static String stockStatus(int count) {

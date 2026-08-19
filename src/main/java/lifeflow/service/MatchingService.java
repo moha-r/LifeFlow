@@ -2,6 +2,7 @@ package lifeflow.service;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import lifeflow.model.BloodRequest;
 import lifeflow.model.BloodUnit;
@@ -17,21 +18,19 @@ public class MatchingService {
     }
 
     public BloodRequest findNextPending(List<BloodRequest> requests) {
-        BloodRequest next = null;
-        for (BloodRequest request : requests) {
-            if (request.getStatus() != RequestStatus.PENDING) {
-                continue;
-            }
-            if (next == null
-                    || request.getPriority() > next.getPriority()
-                    || (request.getPriority() == next.getPriority()
-                    && (request.getRequestDate().isBefore(next.getRequestDate())
-                    || (request.getRequestDate().equals(next.getRequestDate())
-                    && request.getId().compareToIgnoreCase(next.getId()) < 0)))) {
-                next = request;
+        return orderedPending(requests).stream().findFirst().orElse(null);
+    }
+
+    /** Returns the highest-priority request that has its full exact-match stock. */
+    public BloodRequest findNextFulfillable(List<BloodRequest> requests,
+                                            LocalDate date) {
+        for (BloodRequest request : orderedPending(requests)) {
+            if (inventory.getAvailableUnits(request.getBloodType(), date).size()
+                    >= request.getQuantity()) {
+                return request;
             }
         }
-        return next;
+        return null;
     }
 
     public ArrayList<BloodUnit> match(BloodRequest request, LocalDate date) {
@@ -49,5 +48,15 @@ public class MatchingService {
         }
         request.setStatus(RequestStatus.FULFILLED);
         return matched;
+    }
+
+    private static List<BloodRequest> orderedPending(List<BloodRequest> requests) {
+        return requests.stream()
+                .filter(request -> request.getStatus() == RequestStatus.PENDING)
+                .sorted(Comparator.comparingInt(BloodRequest::getPriority).reversed()
+                        .thenComparing(BloodRequest::getRequestDate)
+                        .thenComparing(BloodRequest::getId,
+                                String.CASE_INSENSITIVE_ORDER))
+                .toList();
     }
 }

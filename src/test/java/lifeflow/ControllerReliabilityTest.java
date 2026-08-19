@@ -90,6 +90,49 @@ final class ControllerReliabilityTest {
     }
 
     @Test
+    void matchingSkipsAnUnavailableBloodTypeAndFulfilsTheNextCompatibleRequest()
+            throws Exception {
+        RecordingStore store = new RecordingStore();
+        LifeFlowController controller = new LifeFlowController(new LifeFlowState(), store);
+        controller.addDonor("D1", "Aisha", 25, 55.0, BloodType.O_NEG, null);
+        controller.addBloodUnit("U1", "D1", TODAY.minusDays(1));
+        controller.addRequest("R000001", "First ward", BloodType.O_POS, 1, false);
+        controller.addRequest("R000002", "Second ward", BloodType.O_NEG, 1, false);
+
+        var result = controller.processNextRequest(TODAY);
+
+        assertEquals(MatchOutcome.FULFILLED, result.outcome());
+        assertEquals("R000002", result.request().getId());
+        assertEquals(lifeflow.model.RequestStatus.PENDING,
+                controller.getRequests().get(0).getStatus());
+        assertEquals(lifeflow.model.RequestStatus.FULFILLED,
+                controller.getRequests().get(1).getStatus());
+        assertEquals(UnitStatus.USED, controller.getUnits().get(0).getStatus());
+    }
+
+    @Test
+    void unavailableEmergencyDoesNotBlockACompatibleRegularRequest()
+            throws Exception {
+        RecordingStore store = new RecordingStore();
+        LifeFlowController controller = new LifeFlowController(new LifeFlowState(), store);
+        controller.addDonor("D1", "Aisha", 25, 55.0, BloodType.A_POS, null);
+        controller.addBloodUnit("U1", "D1", TODAY.minusDays(1));
+        controller.addRequest("R000001", "Emergency ward", BloodType.O_POS,
+                1, true);
+        controller.addRequest("R000002", "Regular ward", BloodType.A_POS,
+                1, false);
+
+        var result = controller.processNextRequest(TODAY);
+
+        assertEquals(MatchOutcome.FULFILLED, result.outcome());
+        assertEquals("R000002", result.request().getId());
+        assertEquals(lifeflow.model.RequestStatus.PENDING,
+                controller.getRequests().get(0).getStatus());
+        assertEquals(lifeflow.model.RequestStatus.FULFILLED,
+                controller.getRequests().get(1).getStatus());
+    }
+
+    @Test
     void failedMatchingSaveRollsBackUnitsRequestAndAuditTogether() throws Exception {
         RecordingStore store = new RecordingStore();
         LifeFlowController controller = new LifeFlowController(new LifeFlowState(), store);

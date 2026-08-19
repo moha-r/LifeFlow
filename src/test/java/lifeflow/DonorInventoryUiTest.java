@@ -17,6 +17,7 @@ import lifeflow.service.LifeFlowController;
 import lifeflow.ui.DashboardPanel;
 import lifeflow.ui.DonorsPanel;
 import lifeflow.ui.InventoryPanel;
+import lifeflow.ui.MatchingPanel;
 import lifeflow.ui.UiComponents;
 import lifeflow.ui.UiTheme;
 import org.junit.jupiter.api.Test;
@@ -88,6 +89,47 @@ final class DonorInventoryUiTest {
         Component expired = renderer.getTableCellRendererComponent(
                 table, "EXPIRED", false, false, 0, 0);
         assertEquals(UiTheme.DANGER, expired.getForeground());
+    }
+
+    @Test
+    void matchingWorkspaceShowsTheFirstRequestThatCanActuallyBeFulfilled()
+            throws Exception {
+        LifeFlowController controller = controller("lifeflow-matching-ui-");
+        controller.addDonor("D000001", "Aisha", 25, 55.0,
+                BloodType.O_NEG, null);
+        controller.addBloodUnit("U000001", "D000001", controller.today());
+        controller.addRequest("R000001", "Unavailable first", BloodType.O_POS,
+                1, false);
+        controller.addRequest("R000002", "Ready next", BloodType.O_NEG,
+                1, false);
+        MatchingPanel[] panel = new MatchingPanel[1];
+        SwingUtilities.invokeAndWait(() -> panel[0] = new MatchingPanel(
+                controller, () -> { }, notice -> { }));
+
+        Component selected = named(panel[0], "selectedMatchingRequest");
+
+        assertNotNull(selected);
+        assertEquals("REGULAR · R000002", ((javax.swing.JLabel) selected).getText());
+    }
+
+    @Test
+    void dashboardMarksRequestsAsWaitingOrReadyFromCurrentExactMatchStock()
+            throws Exception {
+        LifeFlowController controller = controller("lifeflow-dashboard-queue-");
+        controller.addDonor("D000001", "Aisha", 25, 55.0,
+                BloodType.O_NEG, null);
+        controller.addBloodUnit("U000001", "D000001", controller.today());
+        controller.addRequest("R000001", "Unavailable", BloodType.O_POS, 1, false);
+        controller.addRequest("R000002", "Ready", BloodType.O_NEG, 1, false);
+        DashboardPanel[] panel = new DashboardPanel[1];
+        SwingUtilities.invokeAndWait(() -> panel[0] = new DashboardPanel(
+                controller, () -> { }, () -> { }, () -> { }, () -> { }));
+
+        JTable queue = (JTable) named(panel[0], "requestQueueTable");
+
+        assertNotNull(queue);
+        assertEquals("WAITING FOR STOCK", queue.getModel().getValueAt(0, 4));
+        assertEquals("READY TO MATCH", queue.getModel().getValueAt(1, 4));
     }
 
     private static LifeFlowController controller(String prefix) throws Exception {

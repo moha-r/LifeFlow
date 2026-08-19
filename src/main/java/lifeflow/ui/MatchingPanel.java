@@ -46,6 +46,9 @@ public final class MatchingPanel extends JPanel {
     private final CardLayout stateLayout = new CardLayout();
     private final JPanel state = new JPanel(stateLayout);
     private final JPanel steps = new JPanel(new GridLayout(1, 3));
+    private final JLabel emptyTitle = UiComponents.heading("No pending requests");
+    private final JLabel emptyDetail = UiComponents.muted(
+            "Create a blood request to start the matching workflow.");
     private final JLabel requestKind = new JLabel("No pending requests");
     private final JLabel requestDetails = UiComponents.muted("The queue is clear.");
     private final JLabel requiredValue = valueLabel("0");
@@ -69,7 +72,7 @@ public final class MatchingPanel extends JPanel {
         setBackground(UiTheme.BACKGROUND);
 
         PageShell shell = new PageShell("Matching workspace",
-                "Emergency requests are processed first, then the oldest request.");
+                "Emergency requests lead the queue; requests without full stock wait.");
         shell.setActions(buildHeaderAction());
         shell.setBody(buildWorkflow());
         add(shell, BorderLayout.CENTER);
@@ -138,14 +141,11 @@ public final class MatchingPanel extends JPanel {
         JPanel copy = new JPanel();
         copy.setOpaque(false);
         copy.setLayout(new BoxLayout(copy, BoxLayout.Y_AXIS));
-        JLabel title = UiComponents.heading("No pending requests");
-        title.setAlignmentX(CENTER_ALIGNMENT);
-        JLabel detail = UiComponents.muted(
-                "Create a blood request to start the matching workflow.");
-        detail.setAlignmentX(CENTER_ALIGNMENT);
-        copy.add(title);
+        emptyTitle.setAlignmentX(CENTER_ALIGNMENT);
+        emptyDetail.setAlignmentX(CENTER_ALIGNMENT);
+        copy.add(emptyTitle);
         copy.add(Box.createVerticalStrut(7));
-        copy.add(detail);
+        copy.add(emptyDetail);
         empty.add(copy);
         return empty;
     }
@@ -182,6 +182,7 @@ public final class MatchingPanel extends JPanel {
         requestKind.setFont(new java.awt.Font(java.awt.Font.SANS_SERIF,
                 java.awt.Font.BOLD, 19));
         requestKind.setForeground(UiTheme.NAVY);
+        requestKind.setName("selectedMatchingRequest");
         content.add(requestKind);
         content.add(Box.createVerticalStrut(5));
         content.add(requestDetails);
@@ -283,9 +284,22 @@ public final class MatchingPanel extends JPanel {
     }
 
     public void processNextRequest() {
-        BloodRequest request = controller.getNextPendingRequest();
+        BloodRequest request = controller.getNextFulfillableRequest();
         if (request == null) {
-            setResult("Queue is empty", "No request was processed.", UiTheme.MUTED);
+            BloodRequest waiting = controller.getNextPendingRequest();
+            if (waiting == null) {
+                setResult("Queue is empty", "No request was processed.", UiTheme.MUTED);
+            } else {
+                int available = controller.getAvailableUnits(waiting.getBloodType(),
+                        controller.today()).size();
+                setResult("Matching paused",
+                        "No pending request can be fulfilled. " + waiting.getId()
+                                + " needs " + waiting.getQuantity() + " unit(s), but "
+                                + available + " are available.", UiTheme.DANGER);
+                status.accept(UiNotice.warning(
+                        "Matching paused: no request has enough compatible stock."));
+            }
+            refreshData();
             return;
         }
         try {
@@ -334,13 +348,27 @@ public final class MatchingPanel extends JPanel {
         for (BloodUnit unit : snapshot.getUnits()) {
             inventory.addUnit(unit);
         }
-        BloodRequest request = new MatchingService(inventory)
-                .findNextPending(snapshot.getRequests());
+        MatchingService matching = new MatchingService(inventory);
+        BloodRequest request = matching.findNextFulfillable(snapshot.getRequests(),
+                controller.today());
         if (request == null) {
             stateLayout.show(state, EMPTY);
             steps.setVisible(false);
             process.setEnabled(false);
             compatibleModel.setRowCount(0);
+            BloodRequest waiting = matching.findNextPending(snapshot.getRequests());
+            if (waiting == null) {
+                emptyTitle.setText("No pending requests");
+                emptyDetail.setText(
+                        "Create a blood request to start the matching workflow.");
+            } else {
+                int available = inventory.getAvailableUnits(waiting.getBloodType(),
+                        controller.today()).size();
+                emptyTitle.setText("No request can be fulfilled yet");
+                emptyDetail.setText(waiting.getId() + " needs " + waiting.getQuantity()
+                        + " unit(s) of " + DashboardPanel.displayType(waiting.getBloodType())
+                        + "; only " + available + " are available.");
+            }
             return;
         }
 
