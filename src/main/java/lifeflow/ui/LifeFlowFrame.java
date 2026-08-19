@@ -26,6 +26,7 @@ public final class LifeFlowFrame extends JFrame {
     private static final String INVENTORY = "Blood Inventory";
     private static final String REQUESTS = "Blood Requests";
     private static final String MATCHING = "Matching";
+    private static final String REPORTS = "Reports";
 
     private final LifeFlowController controller;
     private final CardLayout pageLayout = new CardLayout();
@@ -38,6 +39,7 @@ public final class LifeFlowFrame extends JFrame {
     private SidebarPanel sidebarPanel;
 
     private DashboardPanel dashboardPanel;
+    private ReportsPanel reportsPanel;
     private DonorsPanel donorsPanel;
     private InventoryPanel inventoryPanel;
     private RequestsPanel requestsPanel;
@@ -78,11 +80,12 @@ public final class LifeFlowFrame extends JFrame {
         inventoryPanel = new InventoryPanel(controller, this::refreshAllPages, this::showStatus);
         requestsPanel = new RequestsPanel(controller, this::refreshAllPages, this::showStatus);
         matchingPanel = new MatchingPanel(controller, this::refreshAllPages, this::showStatus);
+        reportsPanel = new ReportsPanel(controller);
         dashboardPanel = new DashboardPanel(controller,
                 donorsPanel::showAddDialog,
                 inventoryPanel::showAddDialog,
                 requestsPanel::showAddDialog,
-                matchingPanel::processNextRequest);
+                () -> showPage(MATCHING));
 
         pages.setBackground(UiTheme.BACKGROUND);
         pages.add(new BoundedContentPanel(dashboardPanel), DASHBOARD);
@@ -90,6 +93,7 @@ public final class LifeFlowFrame extends JFrame {
         pages.add(new BoundedContentPanel(inventoryPanel), INVENTORY);
         pages.add(new BoundedContentPanel(requestsPanel), REQUESTS);
         pages.add(new BoundedContentPanel(matchingPanel), MATCHING);
+        pages.add(new BoundedContentPanel(reportsPanel), REPORTS);
 
         JPanel main = new JPanel(new BorderLayout());
         main.setBackground(UiTheme.BACKGROUND);
@@ -187,6 +191,7 @@ public final class LifeFlowFrame extends JFrame {
         inventoryPanel.refreshData();
         requestsPanel.refreshData();
         matchingPanel.refreshData();
+        reportsPanel.refreshData();
         refreshStorageStatus();
     }
 

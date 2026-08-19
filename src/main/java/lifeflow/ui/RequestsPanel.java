@@ -30,11 +30,12 @@ import javax.swing.table.TableRowSorter;
 import lifeflow.model.BloodRequest;
 import lifeflow.model.BloodType;
 import lifeflow.model.RequestStatus;
+import lifeflow.model.exception.LifeFlowException;
 import lifeflow.service.LifeFlowController;
 
 /** Searchable regular and emergency request workspace. */
 @SuppressWarnings("serial")
-public final class RequestsPanel extends JPanel {
+public final class RequestsPanel extends JPanel implements lifeflow.service.StateObserver {
     private final LifeFlowController controller;
     private final Runnable onDataChanged;
     private final Consumer<UiNotice> status;
@@ -76,9 +77,42 @@ public final class RequestsPanel extends JPanel {
         table.addMouseListener(new java.awt.event.MouseAdapter() {
             @Override
             public void mouseClicked(java.awt.event.MouseEvent event) {
-                if (event.getClickCount() == 2) {
+                if (event.getClickCount() == 2 && SwingUtilities.isLeftMouseButton(event)) {
                     showEditDialog();
                 }
+            }
+            @Override
+            public void mouseReleased(java.awt.event.MouseEvent event) {
+                if (event.isPopupTrigger()) {
+                    showContextMenu(event);
+                }
+            }
+            @Override
+            public void mousePressed(java.awt.event.MouseEvent event) {
+                if (event.isPopupTrigger()) {
+                    showContextMenu(event);
+                }
+            }
+            private void showContextMenu(java.awt.event.MouseEvent event) {
+                int row = table.rowAtPoint(event.getPoint());
+                if (row >= 0 && !table.isRowSelected(row)) {
+                    table.setRowSelectionInterval(row, row);
+                }
+                javax.swing.JPopupMenu popup = new javax.swing.JPopupMenu();
+                javax.swing.JMenuItem editItem = new javax.swing.JMenuItem("Edit Request...");
+                editItem.addActionListener(e -> showEditDialog());
+                javax.swing.JMenuItem copyIdItem = new javax.swing.JMenuItem("Copy Request ID");
+                copyIdItem.addActionListener(e -> {
+                    if (table.getSelectedRow() >= 0) {
+                        String id = model.getValueAt(table.convertRowIndexToModel(table.getSelectedRow()), 0).toString();
+                        java.awt.Toolkit.getDefaultToolkit().getSystemClipboard().setContents(
+                                new java.awt.datatransfer.StringSelection(id), null);
+                        status.accept(UiNotice.info("Request ID copied to clipboard."));
+                    }
+                });
+                popup.add(editItem);
+                popup.add(copyIdItem);
+                popup.show(event.getComponent(), event.getX(), event.getY());
             }
         });
         installFilters();
@@ -235,12 +269,12 @@ public final class RequestsPanel extends JPanel {
                             "EMERGENCY".equals(kind.getSelectedItem()));
                 }
                 dialog.dispose();
-                onDataChanged.run();
+                
                 status.accept(UiNotice.success(editing ? "Blood request updated."
                         : "Blood request created successfully."));
             } catch (NumberFormatException exception) {
                 error.setText("Quantity must be a valid whole number.");
-            } catch (IllegalArgumentException | IOException exception) {
+            } catch (LifeFlowException | IOException exception) {
                 error.setText(exception.getMessage());
             }
         });
@@ -294,6 +328,8 @@ public final class RequestsPanel extends JPanel {
         right.insets = new Insets(7, 0, 7, 0);
         form.add(input, right);
     }
+
+    public void onStateChanged() { refreshData(); }
 
     public void refreshData() {
         model.setRowCount(0);

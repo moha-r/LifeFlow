@@ -43,12 +43,13 @@ import lifeflow.model.Donor;
 import lifeflow.model.EligibilityReason;
 import lifeflow.model.EligibilityResult;
 import lifeflow.model.LifeFlowState;
+import lifeflow.model.exception.LifeFlowException;
 import lifeflow.service.DonationPolicy;
 import lifeflow.service.LifeFlowController;
 
 /** Donor workspace that keeps profiles separate from donation events. */
 @SuppressWarnings("serial")
-public final class DonorsPanel extends JPanel {
+public final class DonorsPanel extends JPanel implements lifeflow.service.StateObserver {
     private static final String TABLE_VIEW = "table";
     private static final String EMPTY_VIEW = "empty";
 
@@ -92,9 +93,42 @@ public final class DonorsPanel extends JPanel {
         table.addMouseListener(new java.awt.event.MouseAdapter() {
             @Override
             public void mouseClicked(java.awt.event.MouseEvent event) {
-                if (event.getClickCount() == 2) {
+                if (event.getClickCount() == 2 && SwingUtilities.isLeftMouseButton(event)) {
                     showEditDialog();
                 }
+            }
+            @Override
+            public void mouseReleased(java.awt.event.MouseEvent event) {
+                if (event.isPopupTrigger()) {
+                    showContextMenu(event);
+                }
+            }
+            @Override
+            public void mousePressed(java.awt.event.MouseEvent event) {
+                if (event.isPopupTrigger()) {
+                    showContextMenu(event);
+                }
+            }
+            private void showContextMenu(java.awt.event.MouseEvent event) {
+                int row = table.rowAtPoint(event.getPoint());
+                if (row >= 0 && !table.isRowSelected(row)) {
+                    table.setRowSelectionInterval(row, row);
+                }
+                javax.swing.JPopupMenu popup = new javax.swing.JPopupMenu();
+                javax.swing.JMenuItem editItem = new javax.swing.JMenuItem("Edit Donor...");
+                editItem.addActionListener(e -> showEditDialog());
+                javax.swing.JMenuItem copyIdItem = new javax.swing.JMenuItem("Copy Donor ID");
+                copyIdItem.addActionListener(e -> {
+                    if (table.getSelectedRow() >= 0) {
+                        String id = model.getValueAt(table.convertRowIndexToModel(table.getSelectedRow()), 0).toString();
+                        java.awt.Toolkit.getDefaultToolkit().getSystemClipboard().setContents(
+                                new java.awt.datatransfer.StringSelection(id), null);
+                        status.accept(UiNotice.info("Donor ID copied to clipboard."));
+                    }
+                });
+                popup.add(editItem);
+                popup.add(copyIdItem);
+                popup.show(event.getComponent(), event.getX(), event.getY());
             }
         });
         installFilters();
@@ -312,7 +346,7 @@ public final class DonorsPanel extends JPanel {
                 EligibilityResult result = controller.checkDonorEligibility(
                         editing ? donor.getId() : id.getText(), controller.today());
                 dialog.dispose();
-                onDataChanged.run();
+                
                 status.accept(donorNotice(editing, result));
             } catch (DateTimeParseException exception) {
                 setFeedback(feedback, "Use yyyy-MM-dd for the external date.",
@@ -320,7 +354,7 @@ public final class DonorsPanel extends JPanel {
             } catch (NumberFormatException exception) {
                 setFeedback(feedback, "Age and weight must be valid numbers.",
                         UiTheme.DANGER);
-            } catch (IllegalArgumentException | IOException exception) {
+            } catch (LifeFlowException | IOException exception) {
                 setFeedback(feedback, exception.getMessage(), UiTheme.DANGER);
             }
         });
@@ -406,7 +440,7 @@ public final class DonorsPanel extends JPanel {
             setFeedback(feedback, "Age and weight must be valid numbers.",
                     UiTheme.DANGER);
             save.setEnabled(false);
-        } catch (IllegalArgumentException exception) {
+        } catch (LifeFlowException | IllegalArgumentException exception) {
             setFeedback(feedback, exception.getMessage(), UiTheme.DANGER);
             save.setEnabled(false);
         }
@@ -416,6 +450,8 @@ public final class DonorsPanel extends JPanel {
         return controller.getStateSnapshot().getUnits().stream().anyMatch(unit ->
                 unit.getDonorId().equalsIgnoreCase(donorId));
     }
+
+    public void onStateChanged() { refreshData(); }
 
     public void refreshData() {
         LifeFlowState snapshot = controller.getStateSnapshot();

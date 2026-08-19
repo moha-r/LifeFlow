@@ -45,6 +45,8 @@ public final class DashboardPanel extends JPanel {
     private final JLabel expiringSoonValue = compactMetricValue("expiringSoonValue");
     private final DefaultTableModel inventoryModel = UiComponents.readOnlyModel(
             "Blood Type", "Available", "Stock Level", "Status");
+    private final PieChartPanel pieChart = new PieChartPanel();
+    private final DefaultTableModel eligibleDonorsModel = new javax.swing.table.DefaultTableModel(new String[]{"Donor", "Type", "Eligible Since"}, 0) { @Override public boolean isCellEditable(int row, int col) { return false; } };
     private final DefaultTableModel requestModel = UiComponents.readOnlyModel(
             "ID", "Requester", "Blood Type", "Qty", "Status");
     private final JTable inventoryTable = new JTable(inventoryModel);
@@ -75,6 +77,21 @@ public final class DashboardPanel extends JPanel {
                                      Runnable addRequest) {
         JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 7, 0));
         actions.setOpaque(false);
+        JButton exportBtn = UiComponents.secondaryButton("Export CSV");
+        exportBtn.addActionListener(e -> {
+            javax.swing.JFileChooser chooser = new javax.swing.JFileChooser();
+            chooser.setDialogTitle("Save Inventory Report");
+            chooser.setSelectedFile(new java.io.File("inventory_report.csv"));
+            if (chooser.showSaveDialog(this) == javax.swing.JFileChooser.APPROVE_OPTION) {
+                try {
+                    lifeflow.service.CsvReportExporter.exportInventory(chooser.getSelectedFile().toPath(), controller.getStateSnapshot(), controller.today());
+                    javax.swing.JOptionPane.showMessageDialog(this, "Report exported successfully.", "Success", javax.swing.JOptionPane.INFORMATION_MESSAGE);
+                } catch (Exception ex) {
+                    javax.swing.JOptionPane.showMessageDialog(this, "Export failed: " + ex.getMessage(), "Error", javax.swing.JOptionPane.ERROR_MESSAGE);
+                }
+            }
+        });
+        actions.add(exportBtn);
         JButton donor = UiComponents.secondaryButton("+ Donor");
         JButton unit = UiComponents.secondaryButton("+ Unit");
         JButton request = UiComponents.primaryButton("+ Request");
@@ -103,8 +120,21 @@ public final class DashboardPanel extends JPanel {
         content.add(operations);
         content.add(Box.createVerticalStrut(UiTheme.SPACE_SM));
         JPanel queue = buildRequestQueue();
-        queue.setAlignmentX(Component.LEFT_ALIGNMENT);
+        queue.setAlignmentX(java.awt.Component.LEFT_ALIGNMENT);
         content.add(queue);
+        content.add(javax.swing.Box.createVerticalStrut(lifeflow.ui.UiTheme.SPACE_SM));
+        
+        javax.swing.JPanel eligibleDonors = denseSection("Eligible Donors (Recall)", "Donors ready to donate again");
+        eligibleDonors.setAlignmentX(java.awt.Component.LEFT_ALIGNMENT);
+        eligibleDonors.setMaximumSize(new java.awt.Dimension(Integer.MAX_VALUE, 220));
+        eligibleDonors.setPreferredSize(new java.awt.Dimension(900, 220));
+        javax.swing.JTable eligibleTable = new javax.swing.JTable(eligibleDonorsModel);
+        lifeflow.ui.UiComponents.configureTable(eligibleTable);
+        eligibleTable.setRowHeight(27);
+        javax.swing.JScrollPane eligibleScroll = new javax.swing.JScrollPane(eligibleTable);
+        eligibleScroll.setBorder(null);
+        eligibleDonors.add(eligibleScroll, java.awt.BorderLayout.CENTER);
+        content.add(eligibleDonors);
 
         JScrollPane scroll = new JScrollPane(content);
         scroll.setName("dashboardScroll");
@@ -196,7 +226,13 @@ public final class DashboardPanel extends JPanel {
                 .setCellRenderer(UiComponents.statusRenderer());
         JScrollPane scroll = new JScrollPane(inventoryTable);
         scroll.setBorder(null);
-        panel.add(scroll, BorderLayout.CENTER);
+        panel.add(scroll, java.awt.BorderLayout.CENTER);
+        
+        javax.swing.JPanel pieContainer = new javax.swing.JPanel(new java.awt.BorderLayout());
+        pieContainer.setOpaque(false);
+        pieContainer.add(pieChart, java.awt.BorderLayout.CENTER);
+        panel.add(pieContainer, java.awt.BorderLayout.EAST);
+        
         return panel;
     }
 
@@ -316,6 +352,14 @@ public final class DashboardPanel extends JPanel {
             if (days >= 0 && days <= 7) {
                 expiringSoon++;
                 expiringByType.merge(unit.getBloodType(), 1, Integer::sum);
+            }
+        }
+        pieChart.updateData(stock);
+        eligibleDonorsModel.setRowCount(0);
+        for (lifeflow.model.Donor d : snapshot.getDonors()) {
+            lifeflow.model.EligibilityResult er = controller.checkDonorEligibility(d.getId(), today);
+            if (er.eligible()) {
+                eligibleDonorsModel.addRow(new Object[]{d.getName(), displayType(d.getBloodType()), er.lastDonationDate() == null ? "Never" : er.lastDonationDate()});
             }
         }
         unitsValue.setText(Integer.toString(availableUnits));

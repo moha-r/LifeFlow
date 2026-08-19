@@ -17,20 +17,26 @@ public class MatchingService {
                     .thenComparing(BloodRequest::getId, String.CASE_INSENSITIVE_ORDER);
 
     private final BloodInventory inventory;
+    private final lifeflow.model.MatchMode matchMode;
 
     public MatchingService(BloodInventory inventory) {
+        this(inventory, lifeflow.model.MatchMode.EXACT);
+    }
+
+    public MatchingService(BloodInventory inventory, lifeflow.model.MatchMode matchMode) {
         this.inventory = inventory;
+        this.matchMode = matchMode != null ? matchMode : lifeflow.model.MatchMode.EXACT;
     }
 
     public BloodRequest findNextPending(List<BloodRequest> requests) {
         return orderedPending(requests).stream().findFirst().orElse(null);
     }
 
-    /** Returns the highest-priority request that has its full exact-match stock. */
+    /** Returns the highest-priority request that has its full stock. */
     public BloodRequest findNextFulfillable(List<BloodRequest> requests,
                                             LocalDate date) {
         for (BloodRequest request : orderedPending(requests)) {
-            if (inventory.getAvailableUnits(request.getBloodType(), date).size()
+            if (inventory.getCompatibleUnits(request.getBloodType(), matchMode, date).size()
                     >= request.getQuantity()) {
                 return request;
             }
@@ -39,8 +45,8 @@ public class MatchingService {
     }
 
     public ArrayList<BloodUnit> match(BloodRequest request, LocalDate date) {
-        ArrayList<BloodUnit> available = inventory.getAvailableUnits(
-                request.getBloodType(), date);
+        ArrayList<BloodUnit> available = inventory.getCompatibleUnits(
+                request.getBloodType(), matchMode, date);
         if (available.size() < request.getQuantity()) {
             return new ArrayList<>();
         }

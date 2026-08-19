@@ -364,6 +364,6 @@ final class JsonLifeFlowStoreTest {
     private static LifeFlowState stateWithDonor(long revision, String id) {
         Donor donor = new Donor(id, "Aisha", 25, 55.0, BloodType.A_POS, null);
         return new LifeFlowState(revision, new ArrayList<>(List.of(donor)),
-                new ArrayList<>(), new ArrayList<>(), new ArrayList<>());
+                new ArrayList<>(), new ArrayList<>(), new ArrayList<>(), new java.util.ArrayList<>());
     }
 }

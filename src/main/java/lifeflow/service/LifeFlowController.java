@@ -54,14 +54,14 @@ public final class LifeFlowController implements AutoCloseable {
         ArrayList<Donor> donors = state.getDonors();
         String donorId = required(id, "Donor ID");
         if (findDonor(donors, donorId) != null) {
-            throw new IllegalArgumentException("Donor ID already exists.");
+            throw new lifeflow.model.exception.DuplicateIdException("Donor", id);
         }
         validatePersonDetails(name, age, weight);
         requireType(type);
         validateExternalDate(externalLastDonation);
         donors.add(new Donor(donorId, safeText(name, "Name"), age, weight,
                 type, externalLastDonation));
-        commit(donors, state.getUnits(), state.getRequests(), state.getFulfilments());
+        commit(donors, state.getUnits(), state.getRequests(), state.getFulfilments(), state.getLogs());
     }
 
     public void updateDonor(String id, String name, int age, double weight,
@@ -71,7 +71,7 @@ public final class LifeFlowController implements AutoCloseable {
         ArrayList<BloodUnit> units = state.getUnits();
         Donor donor = findDonor(donors, required(id, "Donor ID"));
         if (donor == null) {
-            throw new IllegalArgumentException("Donor was not found.");
+            throw new lifeflow.model.exception.EntityNotFoundException("Donor", donor.getId());
         }
         validatePersonDetails(name, age, weight);
         requireType(type);
@@ -82,14 +82,14 @@ public final class LifeFlowController implements AutoCloseable {
         }
         donor.updateDetails(safeText(name, "Name"), age, weight, type,
                 externalLastDonation);
-        commit(donors, units, state.getRequests(), state.getFulfilments());
+        commit(donors, units, state.getRequests(), state.getFulfilments(), state.getLogs());
     }
 
     public EligibilityResult checkDonorEligibility(String donorId,
                                                     LocalDate donationDate) {
         Donor donor = findDonor(state.getDonors(), required(donorId, "Donor"));
         if (donor == null) {
-            throw new IllegalArgumentException("Select a registered donor.");
+            throw new lifeflow.model.exception.ValidationException("Select a registered donor.", "donorId");
         }
         return donationPolicy.evaluate(donor, donationDate,
                 getEffectiveLastDonationDate(donor.getId()));
@@ -99,7 +99,7 @@ public final class LifeFlowController implements AutoCloseable {
         String requiredId = required(donorId, "Donor ID");
         Donor donor = findDonor(state.getDonors(), requiredId);
         if (donor == null) {
-            throw new IllegalArgumentException("Donor was not found.");
+            throw new lifeflow.model.exception.EntityNotFoundException("Donor", donor.getId());
         }
         LocalDate latest = donor.getExternalLastDonationDate();
         for (BloodUnit unit : state.getUnits()) {
@@ -117,21 +117,21 @@ public final class LifeFlowController implements AutoCloseable {
         ArrayList<BloodUnit> units = state.getUnits();
         String unitId = required(id, "Unit ID");
         if (findUnit(units, unitId) != null) {
-            throw new IllegalArgumentException("Unit ID already exists.");
+            throw new lifeflow.model.exception.DuplicateIdException("Blood unit", id);
         }
         Donor donor = findDonor(donors, required(donorId, "Donor"));
         if (donor == null) {
-            throw new IllegalArgumentException("Select a registered donor.");
+            throw new lifeflow.model.exception.ValidationException("Select a registered donor.", "donorId");
         }
         EligibilityResult eligibility = donationPolicy.evaluate(donor, donationDate,
                 getEffectiveLastDonationDate(donor.getId()));
         if (!eligibility.eligible()) {
-            throw new IllegalArgumentException(eligibility.message());
+            throw new lifeflow.model.exception.EligibilityException(eligibility);
         }
         LocalDate expiryDate = donationPolicy.calculateExpiry(donationDate);
         units.add(new BloodUnit(unitId, donor.getId(), donor.getBloodType(),
                 donationDate, expiryDate, UnitStatus.AVAILABLE));
-        commit(donors, units, state.getRequests(), state.getFulfilments());
+        commit(donors, units, state.getRequests(), state.getFulfilments(), state.getLogs());
     }
 
     public void updateUnusedBloodUnitDonationDate(String id,
@@ -140,20 +140,20 @@ public final class LifeFlowController implements AutoCloseable {
         ArrayList<BloodUnit> units = state.getUnits();
         BloodUnit unit = findUnit(units, required(id, "Unit ID"));
         if (unit == null) {
-            throw new IllegalArgumentException("Blood unit was not found.");
+            throw new lifeflow.model.exception.EntityNotFoundException("Blood unit", id);
         }
         if (unit.getStatus() == UnitStatus.USED) {
-            throw new IllegalArgumentException("A used blood unit cannot be edited.");
+            throw new lifeflow.model.exception.ImmutableRecordException("Blood unit", id, "cannot be edited because it is used");
         }
         if (correctedDonationDate == null) {
-            throw new IllegalArgumentException("Donation date is required.");
+            throw new lifeflow.model.exception.ValidationException("Donation date is required.", "donationDate");
         }
         if (correctedDonationDate.isAfter(today())) {
-            throw new IllegalArgumentException("Donation date cannot be in the future.");
+            throw new lifeflow.model.exception.ValidationException("Donation date cannot be in the future.", "donationDate");
         }
         unit.correctDates(correctedDonationDate,
                 donationPolicy.calculateExpiry(correctedDonationDate));
-        commit(state.getDonors(), units, state.getRequests(), state.getFulfilments());
+        commit(state.getDonors(), units, state.getRequests(), state.getFulfilments(), state.getLogs());
     }
 
     public void addRequest(String id, String requester, BloodType type,
@@ -161,12 +161,12 @@ public final class LifeFlowController implements AutoCloseable {
         ArrayList<BloodRequest> requests = state.getRequests();
         String requestId = required(id, "Request ID");
         if (findRequest(requests, requestId) != null) {
-            throw new IllegalArgumentException("Request ID already exists.");
+            throw new lifeflow.model.exception.DuplicateIdException("Blood request", id);
         }
         String requesterName = safeText(requester, "Requester");
         requireType(type);
         if (quantity <= 0) {
-            throw new IllegalArgumentException("Quantity must be greater than zero.");
+            throw new lifeflow.model.exception.ValidationException("Quantity must be greater than zero.", "quantity");
         }
         BloodRequest request = emergency
                 ? new EmergencyRequest(requestId, requesterName, type, quantity,
@@ -174,7 +174,7 @@ public final class LifeFlowController implements AutoCloseable {
                 : new RegularRequest(requestId, requesterName, type, quantity,
                         today(), RequestStatus.PENDING);
         requests.add(request);
-        commit(state.getDonors(), state.getUnits(), requests, state.getFulfilments());
+        commit(state.getDonors(), state.getUnits(), requests, state.getFulfilments(), state.getLogs());
     }
 
     public void updatePendingRequest(String id, String requester, BloodType type,
@@ -182,17 +182,17 @@ public final class LifeFlowController implements AutoCloseable {
         ArrayList<BloodRequest> requests = state.getRequests();
         BloodRequest request = findRequest(requests, required(id, "Request ID"));
         if (request == null) {
-            throw new IllegalArgumentException("Blood request was not found.");
+            throw new lifeflow.model.exception.EntityNotFoundException("Blood request", id);
         }
         if (request.getStatus() == RequestStatus.FULFILLED) {
-            throw new IllegalArgumentException("A fulfilled request cannot be edited.");
+            throw new lifeflow.model.exception.ImmutableRecordException("Blood request", id, "cannot be edited because it is fulfilled");
         }
         requireType(type);
         if (quantity <= 0) {
-            throw new IllegalArgumentException("Quantity must be greater than zero.");
+            throw new lifeflow.model.exception.ValidationException("Quantity must be greater than zero.", "quantity");
         }
         request.updatePendingDetails(safeText(requester, "Requester"), type, quantity);
-        commit(state.getDonors(), state.getUnits(), requests, state.getFulfilments());
+        commit(state.getDonors(), state.getUnits(), requests, state.getFulfilments(), state.getLogs());
     }
 
     public BloodRequest getNextPendingRequest() {
@@ -207,7 +207,7 @@ public final class LifeFlowController implements AutoCloseable {
 
     public MatchResult processNextRequest(LocalDate date) throws IOException {
         if (date == null) {
-            throw new IllegalArgumentException("Processing date is required.");
+            throw new lifeflow.model.exception.ValidationException("Processing date is required.", "processingDate");
         }
         ArrayList<BloodUnit> units = state.getUnits();
         ArrayList<BloodRequest> requests = state.getRequests();
@@ -223,8 +223,7 @@ public final class LifeFlowController implements AutoCloseable {
                     "Processing date cannot be in the future.");
         }
         if (date.isBefore(highestPriority.getRequestDate())) {
-            throw new IllegalArgumentException(
-                    "Processing date must be between the request date and today.");
+            throw new lifeflow.model.exception.ValidationException("Processing date must be between the request date and today.", "processingDate");
         }
         BloodRequest request = service.findNextFulfillable(requests, date);
         if (request == null) {
@@ -238,8 +237,7 @@ public final class LifeFlowController implements AutoCloseable {
                             + available + " are available.");
         }
         if (date.isBefore(request.getRequestDate())) {
-            throw new IllegalArgumentException(
-                    "Processing date must be between the request date and today.");
+            throw new lifeflow.model.exception.ValidationException("Processing date must be between the request date and today.", "processingDate");
         }
         int available = availableFor(request, inventory, date);
         if (available < request.getQuantity()) {
@@ -253,7 +251,7 @@ public final class LifeFlowController implements AutoCloseable {
         ArrayList<FulfilmentRecord> fulfilments = state.getFulfilments();
         fulfilments.add(new FulfilmentRecord(request.getId(), date,
                 matched.stream().map(BloodUnit::getId).toList()));
-        commit(state.getDonors(), units, requests, fulfilments);
+        commit(state.getDonors(), units, requests, fulfilments, state.getLogs());
         return new MatchResult(MatchOutcome.FULFILLED, request, matched, available,
                 "Request fulfilled using " + matched.size() + " unit(s).");
     }
@@ -314,11 +312,84 @@ public final class LifeFlowController implements AutoCloseable {
     @Override
     public void close() throws IOException { store.close(); }
 
-    private void commit(ArrayList<Donor> donors, ArrayList<BloodUnit> units,
+
+    public void logAction(String message) {
+        java.util.ArrayList<String> logs = state.getLogs();
+        String timestamp = java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+        logs.add(0, "[" + timestamp + "] " + message);
+        if (logs.size() > 500) logs.remove(logs.size() - 1);
+        try {
+            commit(state.getDonors(), state.getUnits(), state.getRequests(), state.getFulfilments(), logs);
+        } catch (java.io.IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public lifeflow.model.MatchResult processSpecificRequest(String requestId, java.time.LocalDate date, lifeflow.model.MatchMode mode) throws java.io.IOException {
+        logAction("Processing request " + requestId + " with mode " + mode.name());
+        java.util.ArrayList<lifeflow.model.BloodUnit> units = state.getUnits();
+        java.util.ArrayList<lifeflow.model.BloodRequest> requests = state.getRequests();
+        java.util.ArrayList<lifeflow.model.FulfilmentRecord> fulfilments = state.getFulfilments();
+        
+        lifeflow.service.MatchingService service = new lifeflow.service.MatchingService(lifeflow.service.BloodInventory.from(units), mode);
+        
+        lifeflow.model.BloodRequest req = null;
+        for (lifeflow.model.BloodRequest r : requests) {
+            if (r.getId().equals(requestId)) {
+                req = r;
+                break;
+            }
+        }
+        
+        if (req == null) throw new lifeflow.model.exception.EntityNotFoundException("Blood request", requestId);
+        
+        java.util.ArrayList<lifeflow.model.BloodUnit> matchedUnits = service.match(req, date);
+        if (matchedUnits.isEmpty()) {
+            throw new lifeflow.model.exception.InsufficientStockException("Insufficient stock", req.getBloodType(), req.getQuantity(), matchedUnits.size());
+        }
+        
+        java.util.List<String> unitIds = matchedUnits.stream().map(lifeflow.model.BloodUnit::getId).toList();
+        lifeflow.model.FulfilmentRecord rec = new lifeflow.model.FulfilmentRecord(req.getId(), date, unitIds);
+        
+        req.markFulfilled();
+        fulfilments.add(rec);
+        
+        for (String unitId : rec.unitIds()) {
+            for (int i = 0; i < units.size(); i++) {
+                if (units.get(i).getId().equals(unitId)) {
+                    units.get(i).markUsed();
+                    break;
+                }
+            }
+        }
+        
+        commit(state.getDonors(), units, requests, fulfilments, state.getLogs());
+        return new lifeflow.model.MatchResult(lifeflow.model.MatchOutcome.FULFILLED, req, matchedUnits, req.getQuantity(), "Matched");
+    }
+    
+    public void discardBloodUnit(String id) throws java.io.IOException {
+        java.util.ArrayList<lifeflow.model.BloodUnit> units = state.getUnits();
+        lifeflow.model.BloodUnit toDiscard = null;
+        for (int i = 0; i < units.size(); i++) {
+            if (units.get(i).getId().equals(id)) {
+                toDiscard = units.get(i);
+                units.get(i).markDiscarded();
+                break;
+            }
+        }
+        if (toDiscard == null) {
+            throw new lifeflow.model.exception.EntityNotFoundException("Blood unit", id);
+        }
+        logAction("Discarded expired blood unit " + id);
+        commit(state.getDonors(), units, state.getRequests(), state.getFulfilments(), state.getLogs());
+    }
+
+    private void commit(
+ArrayList<Donor> donors, ArrayList<BloodUnit> units,
                         ArrayList<BloodRequest> requests,
-                        ArrayList<FulfilmentRecord> fulfilments) throws IOException {
+                        ArrayList<FulfilmentRecord> fulfilments, java.util.ArrayList<String> logs) throws IOException {
         LifeFlowState candidate = new LifeFlowState(state.getRevision() + 1,
-                donors, units, requests, fulfilments);
+                donors, units, requests, fulfilments, logs);
         DataValidator.validate(candidate, today());
         store.save(candidate);
         state = candidate.copy();
@@ -379,31 +450,29 @@ public final class LifeFlowController implements AutoCloseable {
     private void validatePersonDetails(String name, int age, double weight) {
         safeText(name, "Name");
         if (age < 1 || age > MAX_PROFILE_AGE) {
-            throw new IllegalArgumentException("Age must be between 1 and 120.");
+            throw new lifeflow.model.exception.ValidationException("Age must be between 1 and 120.", "age");
         }
         if (!Double.isFinite(weight) || weight <= 0
                 || weight > MAX_PROFILE_WEIGHT_KG) {
-            throw new IllegalArgumentException(
-                    "Weight must be greater than 0 and no more than 500 kg.");
+            throw new lifeflow.model.exception.ValidationException("Weight must be greater than 0 and no more than 500 kg.", "weight");
         }
     }
 
     private void validateExternalDate(LocalDate externalLastDonation) {
         if (externalLastDonation != null && externalLastDonation.isAfter(today())) {
-            throw new IllegalArgumentException(
-                    "External donation date cannot be in the future.");
+            throw new lifeflow.model.exception.ValidationException("External donation date cannot be in the future.", "externalDonationDate");
         }
     }
 
     private static void requireType(BloodType type) {
         if (type == null) {
-            throw new IllegalArgumentException("Blood type is required.");
+            throw new lifeflow.model.exception.ValidationException("Blood type is required.", "bloodType");
         }
     }
 
     private static String required(String value, String fieldName) {
         if (value == null || value.trim().isEmpty()) {
-            throw new IllegalArgumentException(fieldName + " is required.");
+            throw new lifeflow.model.exception.ValidationException(fieldName + " is required.", fieldName);
         }
         return value.trim();
     }
@@ -411,8 +480,7 @@ public final class LifeFlowController implements AutoCloseable {
     private static String safeText(String value, String fieldName) {
         String text = required(value, fieldName);
         if (text.contains("|") || text.contains("\n") || text.contains("\r")) {
-            throw new IllegalArgumentException(
-                    fieldName + " cannot contain | or line breaks.");
+            throw new lifeflow.model.exception.ValidationException(fieldName + " cannot contain | or line breaks.", fieldName);
         }
         return text;
     }

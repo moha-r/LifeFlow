@@ -7,8 +7,9 @@ import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
-import java.awt.GridLayout;
+import java.awt.Insets;
 import java.io.IOException;
+import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Consumer;
@@ -16,408 +17,308 @@ import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.JButton;
+import javax.swing.JComboBox;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
+import javax.swing.JSplitPane;
 import javax.swing.JTable;
-import javax.swing.SwingConstants;
+import javax.swing.ListSelectionModel;
 import javax.swing.table.DefaultTableModel;
 import lifeflow.model.BloodRequest;
 import lifeflow.model.BloodUnit;
 import lifeflow.model.Donor;
 import lifeflow.model.EmergencyRequest;
-import lifeflow.model.MatchOutcome;
-import lifeflow.model.MatchResult;
 import lifeflow.model.LifeFlowState;
+import lifeflow.model.exception.LifeFlowException;
 import lifeflow.service.BloodInventory;
 import lifeflow.service.LifeFlowController;
-import lifeflow.service.MatchingService;
+import lifeflow.model.MatchOutcome;
+import lifeflow.model.MatchResult;
 
-/** Explicit request-to-inventory matching workflow with atomic feedback. */
 @SuppressWarnings("serial")
-public final class MatchingPanel extends JPanel {
-    private static final String EMPTY = "empty";
-    private static final String ACTIVE = "active";
-
+public final class MatchingPanel extends JPanel implements lifeflow.service.StateObserver {
     private final LifeFlowController controller;
-    private final Runnable onDataChanged;
     private final Consumer<UiNotice> status;
-    private final CardLayout stateLayout = new CardLayout();
-    private final JPanel state = new JPanel(stateLayout);
-    private final JPanel steps = new JPanel(new GridLayout(1, 3));
-    private final JLabel emptyTitle = UiComponents.heading("No pending requests");
-    private final JLabel emptyDetail = UiComponents.muted(
-            "Create a blood request to start the matching workflow.");
-    private final JLabel requestKind = new JLabel("No pending requests");
-    private final JLabel requestDetails = UiComponents.muted("The queue is clear.");
-    private final JLabel requiredValue = valueLabel("0");
-    private final JLabel availableValue = valueLabel("0");
-    private final DefaultTableModel compatibleModel = UiComponents.readOnlyModel(
-            "Unit ID", "Donor", "Expiry", "Status");
-    private final JTable compatibleTable = new JTable(compatibleModel);
-    private final JButton process = UiComponents.primaryButton(
-            "Process request atomically");
-    private final JPanel resultPanel = new JPanel(new BorderLayout());
-    private final JLabel resultTitle = new JLabel("Ready for the next operation");
-    private final JLabel resultDetails = new JLabel(
-            "Matching results will appear here without blocking the workflow.");
 
-    public MatchingPanel(LifeFlowController controller, Runnable onDataChanged,
-                         Consumer<UiNotice> status) {
+    private final DefaultTableModel requestsModel = UiComponents.readOnlyModel("Request ID", "Kind", "Blood Type", "Qty");
+    private final JTable requestsTable = new JTable(requestsModel);
+    private final JComboBox<lifeflow.model.MatchMode> matchModeSelector = new JComboBox<>(lifeflow.model.MatchMode.values());
+
+    private final DefaultTableModel compatibleModel = UiComponents.readOnlyModel("Unit ID", "Donor", "Expiry", "Action");
+    private final JTable compatibleTable = new JTable(compatibleModel);
+    { compatibleTable.setName("compatibleUnits"); }
+
+    private final CardLayout analysisLayout = new CardLayout();
+    private final JLabel matchingResult = new JLabel();
+    private final JLabel atomicNotice = new JLabel("changes nothing");
+    { atomicNotice.setName("atomicNotice"); }
+    { matchingResult.setName("matchingResult"); }
+    private final JPanel analysisPanel = new JPanel(analysisLayout);
+
+    private final JLabel requestTitle = UiComponents.heading("Select a request");
+    { requestTitle.setName("selectedMatchingRequest"); }
+    private final JLabel requestSubtitle = UiComponents.muted("Details will appear here");
+    private final JLabel requiredValue = valueLabel("-");
+    private final JLabel availableValue = valueLabel("-");
+    private final JButton processButton = UiComponents.primaryButton("Fulfill Selected Request");
+    { processButton.setName("processMatchingButton"); }
+
+    private String selectedRequestId = null;
+
+    public MatchingPanel(LifeFlowController controller, Runnable onDataChanged, Consumer<UiNotice> status) {
         super(new BorderLayout());
         this.controller = controller;
-        this.onDataChanged = onDataChanged;
         this.status = status;
         setBackground(UiTheme.BACKGROUND);
 
-        PageShell shell = new PageShell("Matching workspace",
-                "Emergency requests lead the queue; requests without full stock wait.");
-        shell.setActions(buildHeaderAction());
-        shell.setBody(buildWorkflow());
+        PageShell shell = new PageShell("Matching & Dispatch", "Fulfill blood requests interactively from inventory.");
+        
+        JPanel headerActions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
+        headerActions.setOpaque(false);
+        matchModeSelector.setPreferredSize(new Dimension(130, 34));
+        matchModeSelector.addActionListener(e -> refreshData());
+        JButton refreshQueue = UiComponents.primaryButton("Refresh queue");
+        refreshQueue.setPreferredSize(new Dimension(135, 34));
+        headerActions.add(refreshQueue);
+        headerActions.add(new JLabel("Mode:"));
+        headerActions.add(matchModeSelector);
+        shell.setActions(headerActions);
+
+        shell.setBody(buildSplitView());
         add(shell, BorderLayout.CENTER);
 
-        process.setName("processMatchingButton");
-        process.addActionListener(event -> processNextRequest());
+        requestsTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        requestsTable.getSelectionModel().addListSelectionListener(e -> {
+            if (!e.getValueIsAdjusting()) {
+                int row = requestsTable.getSelectedRow();
+                if (row >= 0) {
+                    selectedRequestId = requestsModel.getValueAt(row, 0).toString();
+                } else {
+                    selectedRequestId = null;
+                }
+                updateAnalysisView();
+            }
+        });
+
+        processButton.addActionListener(e -> processSelectedRequest());
+
         refreshData();
     }
 
-    private JPanel buildHeaderAction() {
-        JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
-        actions.setOpaque(false);
-        JButton refresh = UiComponents.secondaryButton("Refresh queue");
-        refresh.setPreferredSize(new Dimension(136, 34));
-        refresh.addActionListener(event -> refreshData());
-        actions.add(refresh);
-        return actions;
+    private JPanel buildSplitView() {
+        JPanel leftPanel = new JPanel(new BorderLayout());
+        leftPanel.setOpaque(false);
+        leftPanel.setBorder(BorderFactory.createTitledBorder("Pending Requests Queue"));
+        requestsTable.setFillsViewportHeight(true);
+        leftPanel.add(UiComponents.tableScroll(requestsTable), BorderLayout.CENTER);
+
+        JPanel rightPanel = new JPanel(new BorderLayout());
+        rightPanel.setOpaque(false);
+        rightPanel.setBorder(BorderFactory.createTitledBorder("Match Analysis"));
+
+        JPanel emptyState = new JPanel(new GridBagLayout());
+        emptyState.add(matchingResult);
+        emptyState.add(atomicNotice);
+        emptyState.setName("matchingEmptyState");
+        emptyState.setOpaque(false);
+        emptyState.add(UiComponents.muted("Select a request from the queue to view analysis."));
+        analysisPanel.setOpaque(false);
+        analysisPanel.add(emptyState, "EMPTY");
+
+        JPanel activeState = buildActiveAnalysisPanel();
+        activeState.setName("matchingSteps");
+        analysisPanel.add(activeState, "ACTIVE");
+
+        rightPanel.add(analysisPanel, BorderLayout.CENTER);
+
+        JSplitPane splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, leftPanel, rightPanel);
+        splitPane.setDividerLocation(450);
+        splitPane.setOpaque(false);
+        splitPane.setBorder(null);
+
+        JPanel container = new JPanel(new BorderLayout());
+        container.setOpaque(false);
+        container.setBorder(BorderFactory.createEmptyBorder(10, 20, 20, 20));
+        container.add(splitPane, BorderLayout.CENTER);
+        return container;
     }
 
-    private JPanel buildWorkflow() {
-        JPanel workflow = new JPanel(new BorderLayout(0, UiTheme.SPACE_SM));
-        workflow.setOpaque(false);
+    private JPanel buildActiveAnalysisPanel() {
+        JPanel panel = new JPanel(new BorderLayout(0, 10));
+        panel.setOpaque(false);
 
-        steps.setName("matchingSteps");
-        steps.setBackground(UiTheme.SURFACE);
-        steps.setBorder(BorderFactory.createLineBorder(UiTheme.BORDER));
-        steps.add(step("1", "Fulfillable request selected", true));
-        steps.add(step("2", "Compatible inventory checked", true));
-        steps.add(step("3", "Review and process", false));
-        steps.setPreferredSize(new Dimension(700, 54));
-        workflow.add(steps, BorderLayout.NORTH);
-
-        state.setOpaque(false);
-        state.add(buildEmptyState(), EMPTY);
-        state.add(buildActiveState(), ACTIVE);
-        workflow.add(state, BorderLayout.CENTER);
-
-        configureResultPanel();
-        workflow.add(resultPanel, BorderLayout.SOUTH);
-        return workflow;
-    }
-
-    private JPanel step(String number, String label, boolean complete) {
-        JPanel item = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 12));
-        item.setBackground(UiTheme.SURFACE);
-        JLabel dot = new JLabel(complete ? "✓" : number, SwingConstants.CENTER);
-        dot.setOpaque(true);
-        dot.setPreferredSize(new Dimension(28, 28));
-        dot.setBackground(complete ? UiTheme.SUCCESS_LIGHT : UiTheme.CORAL_LIGHT);
-        dot.setForeground(complete ? UiTheme.SUCCESS : UiTheme.DANGER);
-        dot.setBorder(BorderFactory.createLineBorder(complete
-                ? new Color(0xA8DCCB) : new Color(0xF2AFBF)));
-        JLabel text = new JLabel(label);
-        text.setFont(new java.awt.Font(java.awt.Font.SANS_SERIF,
-                complete ? java.awt.Font.PLAIN : java.awt.Font.BOLD, 11));
-        text.setForeground(complete ? UiTheme.MUTED : UiTheme.NAVY);
-        item.add(dot);
-        item.add(text);
-        return item;
-    }
-
-    private JPanel buildEmptyState() {
-        JPanel empty = UiComponents.densePanel(new GridBagLayout());
-        empty.setName("matchingEmptyState");
-        empty.setBorder(BorderFactory.createLineBorder(UiTheme.BORDER));
-        JPanel copy = new JPanel();
-        copy.setOpaque(false);
-        copy.setLayout(new BoxLayout(copy, BoxLayout.Y_AXIS));
-        emptyTitle.setAlignmentX(CENTER_ALIGNMENT);
-        emptyDetail.setAlignmentX(CENTER_ALIGNMENT);
-        copy.add(emptyTitle);
-        copy.add(Box.createVerticalStrut(7));
-        copy.add(emptyDetail);
-        empty.add(copy);
-        return empty;
-    }
-
-    private JPanel buildActiveState() {
-        JPanel row = new JPanel(new GridBagLayout());
-        row.setOpaque(false);
-
-        GridBagConstraints request = new GridBagConstraints();
-        request.gridx = 0;
-        request.gridy = 0;
-        request.weightx = 0.36;
-        request.weighty = 1;
-        request.fill = GridBagConstraints.BOTH;
-        request.insets = new java.awt.Insets(0, 0, 0, 10);
-        row.add(buildRequestPanel(), request);
-
-        GridBagConstraints units = new GridBagConstraints();
-        units.gridx = 1;
-        units.gridy = 0;
-        units.weightx = 0.64;
-        units.weighty = 1;
-        units.fill = GridBagConstraints.BOTH;
-        row.add(buildCompatiblePanel(), units);
-        return row;
-    }
-
-    private JPanel buildRequestPanel() {
-        JPanel panel = denseSection("Selected request", "First with full stock");
-        JPanel content = new JPanel();
-        content.setBackground(UiTheme.SURFACE);
-        content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
-        content.setBorder(BorderFactory.createEmptyBorder(15, 15, 14, 15));
-        requestKind.setFont(new java.awt.Font(java.awt.Font.SANS_SERIF,
-                java.awt.Font.BOLD, 19));
-        requestKind.setForeground(UiTheme.NAVY);
-        requestKind.setName("selectedMatchingRequest");
-        content.add(requestKind);
-        content.add(Box.createVerticalStrut(5));
-        content.add(requestDetails);
-        content.add(Box.createVerticalStrut(13));
-        JPanel quantities = new JPanel(new GridLayout(1, 2, 7, 0));
-        quantities.setOpaque(false);
-        quantities.add(quantityBox("REQUIRED", requiredValue));
-        quantities.add(quantityBox("AVAILABLE", availableValue));
-        quantities.setMaximumSize(new Dimension(Integer.MAX_VALUE, 62));
-        content.add(quantities);
-        content.add(Box.createVerticalStrut(10));
-        JLabel atomic = new JLabel("Atomic: insufficient stock changes nothing.");
-        atomic.setName("atomicNotice");
-        atomic.setOpaque(true);
-        atomic.setBackground(UiTheme.WARNING_LIGHT);
-        atomic.setForeground(new Color(0x9B660C));
-        atomic.setFont(new java.awt.Font(java.awt.Font.SANS_SERIF,
-                java.awt.Font.PLAIN, 10));
-        atomic.setBorder(BorderFactory.createEmptyBorder(8, 9, 8, 9));
-        atomic.setMaximumSize(new Dimension(Integer.MAX_VALUE, 45));
-        content.add(atomic);
-        content.add(Box.createVerticalGlue());
-        process.setAlignmentX(LEFT_ALIGNMENT);
-        process.setMaximumSize(new Dimension(Integer.MAX_VALUE, 36));
-        process.setPreferredSize(new Dimension(220, 36));
-        content.add(process);
-        panel.add(content, BorderLayout.CENTER);
-        return panel;
-    }
-
-    private JPanel buildCompatiblePanel() {
-        JPanel panel = denseSection("Compatible units selected",
-                "Same ABO and Rh type");
-        compatibleTable.setName("compatibleUnits");
-        UiComponents.configureTable(compatibleTable);
-        compatibleTable.setRowHeight(34);
-        compatibleTable.getColumnModel().getColumn(3)
-                .setCellRenderer(UiComponents.statusRenderer());
-        JScrollPane scroll = new JScrollPane(compatibleTable);
-        scroll.setBorder(null);
-        panel.add(scroll, BorderLayout.CENTER);
-        return panel;
-    }
-
-    private JPanel denseSection(String title, String caption) {
-        JPanel panel = UiComponents.densePanel(new BorderLayout());
-        panel.setBorder(BorderFactory.createLineBorder(UiTheme.BORDER));
-        JPanel header = new JPanel(new BorderLayout());
-        header.setBackground(UiTheme.SURFACE);
-        header.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createMatteBorder(0, 0, 1, 0, UiTheme.BORDER),
-                BorderFactory.createEmptyBorder(10, 13, 10, 13)));
-        JLabel heading = new JLabel(title);
-        heading.setFont(new java.awt.Font(java.awt.Font.SANS_SERIF,
-                java.awt.Font.BOLD, 13));
-        JLabel detail = new JLabel(caption);
-        detail.setFont(new java.awt.Font(java.awt.Font.SANS_SERIF,
-                java.awt.Font.PLAIN, 10));
-        detail.setForeground(UiTheme.MUTED);
-        header.add(heading, BorderLayout.WEST);
-        header.add(detail, BorderLayout.EAST);
+        JPanel header = new JPanel();
+        header.setOpaque(false);
+        header.setLayout(new BoxLayout(header, BoxLayout.Y_AXIS));
+        header.add(requestTitle);
+        header.add(Box.createVerticalStrut(5));
+        header.add(requestSubtitle);
         panel.add(header, BorderLayout.NORTH);
+
+        JPanel metrics = new JPanel(new FlowLayout(FlowLayout.LEFT, 20, 0));
+        metrics.setOpaque(false);
+        metrics.add(metricBox("Required", requiredValue));
+        metrics.add(metricBox("Available Compatible", availableValue));
+
+        JPanel tableArea = new JPanel(new BorderLayout());
+        tableArea.setOpaque(false);
+        compatibleTable.setFillsViewportHeight(true);
+        tableArea.add(UiComponents.tableScroll(compatibleTable), BorderLayout.CENTER);
+
+        JPanel center = new JPanel(new BorderLayout(0, 10));
+        center.setOpaque(false);
+        center.add(metrics, BorderLayout.NORTH);
+        center.add(tableArea, BorderLayout.CENTER);
+        panel.add(center, BorderLayout.CENTER);
+
+        JPanel footer = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        footer.setOpaque(false);
+        processButton.setPreferredSize(new Dimension(200, 40));
+        footer.add(processButton);
+        panel.add(footer, BorderLayout.SOUTH);
+
         return panel;
     }
 
-    private JPanel quantityBox(String title, JLabel value) {
-        JPanel box = new JPanel(new BorderLayout(0, 3));
-        box.setBackground(new Color(0xF6F7F9));
-        box.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(UiTheme.BORDER),
-                BorderFactory.createEmptyBorder(7, 9, 7, 9)));
-        JLabel label = new JLabel(title);
-        label.setFont(new java.awt.Font(java.awt.Font.SANS_SERIF,
-                java.awt.Font.BOLD, 9));
-        label.setForeground(UiTheme.MUTED);
+    private JPanel metricBox(String title, JLabel value) {
+        JPanel box = new JPanel(new BorderLayout(0, 2));
+        box.setOpaque(false);
+        JLabel label = UiComponents.muted(title);
+        label.setFont(new java.awt.Font(java.awt.Font.SANS_SERIF, java.awt.Font.PLAIN, 11));
         box.add(label, BorderLayout.NORTH);
         box.add(value, BorderLayout.CENTER);
         return box;
     }
 
-    private void configureResultPanel() {
-        resultPanel.setName("matchingResult");
-        resultPanel.setBackground(UiTheme.SURFACE);
-        resultPanel.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(UiTheme.BORDER),
-                BorderFactory.createEmptyBorder(10, 13, 10, 13)));
-        JPanel copy = new JPanel();
-        copy.setOpaque(false);
-        copy.setLayout(new BoxLayout(copy, BoxLayout.Y_AXIS));
-        resultTitle.setFont(new java.awt.Font(java.awt.Font.SANS_SERIF,
-                java.awt.Font.BOLD, 12));
-        resultDetails.setFont(new java.awt.Font(java.awt.Font.SANS_SERIF,
-                java.awt.Font.PLAIN, 10));
-        resultDetails.setForeground(UiTheme.MUTED);
-        copy.add(resultTitle);
-        copy.add(Box.createVerticalStrut(3));
-        copy.add(resultDetails);
-        resultPanel.add(copy, BorderLayout.WEST);
-    }
-
-    public void processNextRequest() {
-        BloodRequest request = controller.getNextFulfillableRequest();
-        if (request == null) {
-            BloodRequest waiting = controller.getNextPendingRequest();
-            if (waiting == null) {
-                setResult("Queue is empty", "No request was processed.", UiTheme.MUTED);
-            } else {
-                int available = controller.getAvailableUnits(waiting.getBloodType(),
-                        controller.today()).size();
-                setResult("Matching paused",
-                        "No pending request can be fulfilled. " + waiting.getId()
-                                + " needs " + waiting.getQuantity() + " unit(s), but "
-                                + available + " are available.", UiTheme.DANGER);
-                status.accept(UiNotice.warning(
-                        "Matching paused: no request has enough compatible stock."));
-            }
-            refreshData();
+    private void updateAnalysisView() {
+        if (selectedRequestId == null) {
+            processButton.setEnabled(false); analysisLayout.show(analysisPanel, "EMPTY");
             return;
         }
-        try {
-            MatchResult result = controller.processNextRequest(controller.today());
-            if (result.outcome() == MatchOutcome.INSUFFICIENT_STOCK) {
-                setResult("Matching paused",
-                        "Request " + request.getId() + " needs "
-                                + request.getQuantity() + " unit(s), but only "
-                                + result.availableCount()
-                                + " are available. No state changed.",
-                        UiTheme.DANGER);
-                status.accept(UiNotice.warning(
-                        "Matching paused: insufficient compatible stock."));
-            } else if (result.outcome() == MatchOutcome.FULFILLED) {
-                StringBuilder ids = new StringBuilder();
-                for (BloodUnit unit : result.matchedUnits()) {
-                    if (!ids.isEmpty()) {
-                        ids.append(", ");
-                    }
-                    ids.append(unit.getId());
-                }
-                setResult("Request fulfilled successfully",
-                        "Request " + request.getId() + " used units " + ids + ".",
-                        UiTheme.SUCCESS);
-                status.accept(UiNotice.success(
-                        "Request fulfilled and inventory updated."));
-                onDataChanged.run();
-            } else {
-                setResult("Queue is empty", "No request was processed.",
-                        UiTheme.MUTED);
-            }
-            refreshData();
-        } catch (IOException exception) {
-            setResult("The result could not be saved", exception.getMessage(),
-                    UiTheme.DANGER);
-            JOptionPane.showMessageDialog(this,
-                    "LifeFlow could not save the matching result.\n"
-                            + exception.getMessage(),
-                    "Storage Error", JOptionPane.ERROR_MESSAGE);
-        }
-    }
-
-    public void refreshData() {
+        
         LifeFlowState snapshot = controller.getStateSnapshot();
-        BloodInventory inventory = BloodInventory.from(snapshot.getUnits());
-        MatchingService matching = new MatchingService(inventory);
-        BloodRequest request = matching.findNextFulfillable(snapshot.getRequests(),
-                controller.today());
+        BloodRequest request = snapshot.getRequests().stream()
+                .filter(r -> r.getId().equals(selectedRequestId) && r.getStatus() == lifeflow.model.RequestStatus.PENDING)
+                .findFirst().orElse(null);
+                
         if (request == null) {
-            stateLayout.show(state, EMPTY);
-            steps.setVisible(false);
-            process.setEnabled(false);
-            compatibleModel.setRowCount(0);
-            BloodRequest waiting = matching.findNextPending(snapshot.getRequests());
-            if (waiting == null) {
-                emptyTitle.setText("No pending requests");
-                emptyDetail.setText(
-                        "Create a blood request to start the matching workflow.");
-            } else {
-                int available = inventory.getAvailableUnits(waiting.getBloodType(),
-                        controller.today()).size();
-                emptyTitle.setText("No request can be fulfilled yet");
-                emptyDetail.setText(waiting.getId() + " needs " + waiting.getQuantity()
-                        + " unit(s) of " + DashboardPanel.displayType(waiting.getBloodType())
-                        + "; only " + available + " are available.");
-            }
+            processButton.setEnabled(false); analysisLayout.show(analysisPanel, "EMPTY");
             return;
         }
 
-        stateLayout.show(state, ACTIVE);
-        steps.setVisible(true);
-        process.setEnabled(true);
-        java.util.ArrayList<BloodUnit> availableUnits = inventory.getAvailableUnits(
-                request.getBloodType(), controller.today());
+        analysisLayout.show(analysisPanel, "ACTIVE");
+        lifeflow.model.MatchMode mode = (lifeflow.model.MatchMode) matchModeSelector.getSelectedItem();
+        BloodInventory inventory = BloodInventory.from(snapshot.getUnits());
+        java.util.ArrayList<BloodUnit> availableUnits = inventory.getCompatibleUnits(
+                request.getBloodType(), mode, controller.today());
         int available = availableUnits.size();
-        requestKind.setText(request.getKind() + " · " + request.getId());
-        requestKind.setForeground(request instanceof EmergencyRequest
-                ? UiTheme.DANGER : UiTheme.NAVY);
-        requestDetails.setText(request.getRequesterName() + " · "
-                + DashboardPanel.displayType(request.getBloodType()));
+
+        requestTitle.setText(request.getKind() + " · " + request.getId());
+        requestTitle.setForeground(request instanceof EmergencyRequest ? UiTheme.DANGER : UiTheme.NAVY);
+        requestSubtitle.setText(request.getRequesterName() + " · " + DashboardPanel.displayType(request.getBloodType()));
+        
         requiredValue.setText(Integer.toString(request.getQuantity()));
         availableValue.setText(Integer.toString(available));
-        availableValue.setForeground(available >= request.getQuantity()
-                ? UiTheme.SUCCESS : UiTheme.DANGER);
+        
+        if (available >= request.getQuantity()) {
+            availableValue.setForeground(UiTheme.SUCCESS);
+            processButton.setEnabled(true);
+            processButton.setText("Fulfill Request");
+        } else {
+            availableValue.setForeground(UiTheme.DANGER);
+            processButton.setEnabled(false);
+            processButton.setText("Insufficient Units");
+        }
 
         compatibleModel.setRowCount(0);
-        int selectedCount = 0;
         Map<String, String> donorNames = new HashMap<>();
         for (Donor donor : snapshot.getDonors()) {
-            donorNames.put(donor.getId().toLowerCase(java.util.Locale.ROOT),
-                    donor.getName());
+            donorNames.put(donor.getId().toLowerCase(java.util.Locale.ROOT), donor.getName());
         }
+        int selectedCount = 0;
         for (BloodUnit unit : availableUnits) {
-            if (selectedCount >= request.getQuantity()) {
-                break;
-            }
-            compatibleModel.addRow(new Object[]{unit.getId(),
-                    donorNames.getOrDefault(unit.getDonorId()
-                            .toLowerCase(java.util.Locale.ROOT), unit.getDonorId()),
-                    unit.getExpiryDate(), "FEFO SELECTED"});
+            if (selectedCount >= request.getQuantity()) break;
+            compatibleModel.addRow(new Object[]{
+                unit.getId(),
+                donorNames.getOrDefault(unit.getDonorId().toLowerCase(java.util.Locale.ROOT), unit.getDonorId()),
+                unit.getExpiryDate(),
+                "TO BE DISPATCHED"
+            });
             selectedCount++;
         }
     }
 
-    private void setResult(String title, String details, Color color) {
-        resultTitle.setText(title);
-        resultTitle.setForeground(color);
-        resultDetails.setText(details == null || details.isBlank()
-                ? "No additional details are available." : details);
-        resultPanel.setBackground(color == UiTheme.SUCCESS
-                ? UiTheme.SUCCESS_LIGHT
-                : color == UiTheme.DANGER ? UiTheme.DANGER_LIGHT : UiTheme.SURFACE);
+    private void processSelectedRequest() {
+        if (selectedRequestId == null) return;
+        lifeflow.model.MatchMode mode = (lifeflow.model.MatchMode) matchModeSelector.getSelectedItem();
+        try {
+            MatchResult result = controller.processSpecificRequest(selectedRequestId, controller.today(), mode);
+            if (result.outcome() == MatchOutcome.INSUFFICIENT_STOCK) {
+                status.accept(UiNotice.warning("Matching paused: insufficient compatible stock."));
+            } else if (result.outcome() == MatchOutcome.FULFILLED) {
+                status.accept(UiNotice.success("Request " + selectedRequestId + " fulfilled successfully."));
+            } else {
+                status.accept(UiNotice.info("No request was processed."));
+            }
+            // Controller will call onStateChanged automatically
+        } catch (LifeFlowException | IOException exception) {
+            status.accept(UiNotice.warning("Error: " + exception.getMessage()));
+        }
+    }
+
+    public void onStateChanged() {
+        refreshData();
+    }
+
+    public void refreshData() {
+        LifeFlowState snapshot = controller.getStateSnapshot();
+        requestsModel.setRowCount(0);
+        
+        java.util.List<BloodRequest> pending = snapshot.getRequests().stream()
+                .filter(r -> r.getStatus() == lifeflow.model.RequestStatus.PENDING)
+                .sorted(lifeflow.service.MatchingService.ORDER)
+                .toList();
+                
+        for (BloodRequest req : pending) {
+            requestsModel.addRow(new Object[]{
+                req.getId(),
+                req.getKind(),
+                DashboardPanel.displayType(req.getBloodType()),
+                req.getQuantity()
+            });
+        }
+        
+        // Restore selection if still exists
+        if (selectedRequestId == null && requestsModel.getRowCount() > 0) {
+            // Auto-select first fulfillable
+            java.util.List<BloodRequest> pendingReqs = snapshot.getRequests().stream().filter(r -> r.getStatus() == lifeflow.model.RequestStatus.PENDING).toList();
+            lifeflow.model.BloodRequest fulfillable = new lifeflow.service.MatchingService(lifeflow.service.BloodInventory.from(snapshot.getUnits())).findNextFulfillable(pendingReqs, controller.today());
+            if (fulfillable != null) {
+                selectedRequestId = fulfillable.getId();
+            }
+        }
+        if (selectedRequestId != null) {
+            boolean found = false;
+            for (int i = 0; i < requestsModel.getRowCount(); i++) {
+                if (requestsModel.getValueAt(i, 0).equals(selectedRequestId)) {
+                    requestsTable.setRowSelectionInterval(i, i);
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) {
+                selectedRequestId = null;
+                requestsTable.clearSelection();
+            }
+        }
+        updateAnalysisView();
     }
 
     private static JLabel valueLabel(String text) {
         JLabel label = new JLabel(text);
-        label.setFont(new java.awt.Font(java.awt.Font.SANS_SERIF,
-                java.awt.Font.BOLD, 16));
+        label.setFont(new java.awt.Font(java.awt.Font.SANS_SERIF, java.awt.Font.BOLD, 18));
         label.setForeground(UiTheme.NAVY);
         return label;
     }

@@ -84,6 +84,26 @@ public final class InventoryPanel extends JPanel {
         for (int column = 0; column < widths.length; column++) {
             table.getColumnModel().getColumn(column).setPreferredWidth(widths[column]);
         }
+        table.setDefaultRenderer(Object.class, new javax.swing.table.DefaultTableCellRenderer() {
+            @Override
+            public java.awt.Component getTableCellRendererComponent(javax.swing.JTable t, Object value, boolean isSelected, boolean hasFocus, int row, int col) {
+                java.awt.Component c = super.getTableCellRendererComponent(t, value, isSelected, hasFocus, row, col);
+                String state = t.getModel().getValueAt(t.convertRowIndexToModel(row), 6).toString();
+                if (!isSelected) {
+                    if ("EXPIRED".equals(state)) {
+                        c.setBackground(new java.awt.Color(255, 235, 238));
+                        c.setForeground(lifeflow.ui.UiTheme.DANGER);
+                    } else if ("DISCARDED".equals(state) || "USED".equals(state)) {
+                        c.setBackground(t.getBackground());
+                        c.setForeground(java.awt.Color.GRAY);
+                    } else {
+                        c.setBackground(t.getBackground());
+                        c.setForeground(t.getForeground());
+                    }
+                }
+                return c;
+            }
+        });
         table.addMouseListener(new java.awt.event.MouseAdapter() {
             @Override
             public void mouseClicked(java.awt.event.MouseEvent event) {

@@ -16,10 +16,10 @@ import javax.swing.JPanel;
 @SuppressWarnings("serial")
 public final class SidebarPanel extends JPanel {
     private static final String[] PAGES = {
-        "Dashboard", "Donors", "Blood Inventory", "Blood Requests", "Matching"
+        "Dashboard", "Donors", "Blood Inventory", "Blood Requests", "Matching", "Reports"
     };
     private static final String[] LABELS = {
-        "Overview", "Donors", "Inventory", "Requests", "Matching"
+        "Overview", "Donors", "Inventory", "Requests", "Matching", "Reports"
     };
 
     private final Map<String, JButton> navigation = new LinkedHashMap<>();

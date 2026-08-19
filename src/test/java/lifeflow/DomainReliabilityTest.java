@@ -123,6 +123,6 @@ final class DomainReliabilityTest {
                                        List<BloodRequest> requests,
                                        List<FulfilmentRecord> fulfilments) {
         return new LifeFlowState(0, new ArrayList<>(donors), new ArrayList<>(units),
-                new ArrayList<>(requests), new ArrayList<>(fulfilments));
+                new ArrayList<>(requests), new ArrayList<>(fulfilments), new java.util.ArrayList<>());
     }
 }

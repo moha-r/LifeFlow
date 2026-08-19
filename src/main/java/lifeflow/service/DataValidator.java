@@ -16,6 +16,9 @@ import lifeflow.model.FulfilmentRecord;
 import lifeflow.model.LifeFlowState;
 import lifeflow.model.RequestStatus;
 import lifeflow.model.UnitStatus;
+import lifeflow.model.exception.ValidationException;
+import lifeflow.model.exception.DuplicateIdException;
+import lifeflow.model.exception.EntityNotFoundException;
 
 /** Validates one complete snapshot before it is accepted or persisted. */
 public final class DataValidator {
@@ -28,7 +31,7 @@ public final class DataValidator {
 
     public static void validate(LifeFlowState state, LocalDate today) {
         if (state == null || state.getRevision() < 0 || today == null) {
-            throw new IllegalArgumentException("Invalid LifeFlow state revision.");
+            throw new ValidationException("Invalid LifeFlow state revision.", "state");
         }
 
         ArrayList<Donor> donors = state.getDonors();
@@ -53,18 +56,18 @@ public final class DataValidator {
             validateText(donor.getId(), "Donor ID");
             validateText(donor.getName(), "Donor name");
             if (donorsById.put(key(donor.getId()), donor) != null) {
-                throw new IllegalArgumentException("Duplicate donor ID: " + donor.getId());
+                throw new DuplicateIdException("Donor", donor.getId());
             }
             if (donor.getAge() < 1 || donor.getAge() > 120
                     || donor.getWeightKg() <= 0 || donor.getWeightKg() > 500
                     || !Double.isFinite(donor.getWeightKg())
                     || donor.getBloodType() == null) {
-                throw new IllegalArgumentException("Invalid donor details: " + donor.getId());
+                throw new ValidationException("Invalid donor details: " + donor.getId(), "donor");
             }
             if (donor.getExternalLastDonationDate() != null
                     && donor.getExternalLastDonationDate().isAfter(today)) {
-                throw new IllegalArgumentException(
-                        "External donation cannot be in the future: " + donor.getId());
+                throw new ValidationException(
+                        "External donation cannot be in the future: " + donor.getId(), "externalLastDonationDate");
             }
         }
         return donorsById;
@@ -78,26 +81,25 @@ public final class DataValidator {
             validateText(unit.getId(), "Unit ID");
             validateText(unit.getDonorId(), "Unit donor ID");
             if (unitsById.put(key(unit.getId()), unit) != null) {
-                throw new IllegalArgumentException("Duplicate unit ID: " + unit.getId());
+                throw new DuplicateIdException("Blood unit", unit.getId());
             }
             Donor donor = donorsById.get(key(unit.getDonorId()));
             if (donor == null) {
-                throw new IllegalArgumentException(
-                        "Unit references a missing donor: " + unit.getId());
+                throw new EntityNotFoundException("Donor", unit.getDonorId());
             }
             if (unit.getBloodType() == null || unit.getStatus() == null
                     || unit.getDonationDate() == null || unit.getExpiryDate() == null) {
-                throw new IllegalArgumentException("Incomplete blood unit: " + unit.getId());
+                throw new ValidationException("Incomplete blood unit: " + unit.getId(), "unit");
             }
             if (unit.getBloodType() != donor.getBloodType()) {
-                throw new IllegalArgumentException(
-                        "Unit blood type does not match donor: " + unit.getId());
+                throw new ValidationException(
+                        "Unit blood type does not match donor: " + unit.getId(), "bloodType");
             }
             long shelfLife = ChronoUnit.DAYS.between(
                     unit.getDonationDate(), unit.getExpiryDate());
             if (unit.getDonationDate().isAfter(today) || shelfLife < 0
                     || shelfLife > DonationPolicy.UNIT_SHELF_LIFE_DAYS) {
-                throw new IllegalArgumentException("Invalid unit dates: " + unit.getId());
+                throw new ValidationException("Invalid unit dates: " + unit.getId(), "donationDate");
             }
             donationsByDonor.computeIfAbsent(key(unit.getDonorId()), ignored ->
                     new ArrayList<>()).add(unit.getDonationDate());
@@ -113,8 +115,8 @@ public final class DataValidator {
                     key(donor.getId()), new ArrayList<>());
             LocalDate external = donor.getExternalLastDonationDate();
             if (external != null && internalDates.contains(external)) {
-                throw new IllegalArgumentException(
-                        "External donation duplicates a recorded unit: " + donor.getId());
+                throw new ValidationException(
+                        "External donation duplicates a recorded unit: " + donor.getId(), "externalLastDonationDate");
             }
             ArrayList<LocalDate> allDates = new ArrayList<>(internalDates);
             if (external != null) {
@@ -126,9 +128,9 @@ public final class DataValidator {
                 LocalDate current = allDates.get(index);
                 if (current.isBefore(previous.plusMonths(
                         DonationPolicy.WAITING_MONTHS))) {
-                    throw new IllegalArgumentException(
+                    throw new ValidationException(
                             "Donations are less than three months apart for donor: "
-                                    + donor.getId());
+                                    + donor.getId(), "donationDate");
                 }
             }
         }
@@ -141,14 +143,13 @@ public final class DataValidator {
             validateText(request.getId(), "Request ID");
             validateText(request.getRequesterName(), "Requester");
             if (requestsById.put(key(request.getId()), request) != null) {
-                throw new IllegalArgumentException(
-                        "Duplicate request ID: " + request.getId());
+                throw new DuplicateIdException("Request", request.getId());
             }
             if (request.getBloodType() == null || request.getStatus() == null
                     || request.getRequestDate() == null || request.getQuantity() <= 0
                     || request.getRequestDate().isAfter(today)) {
-                throw new IllegalArgumentException(
-                        "Invalid blood request: " + request.getId());
+                throw new ValidationException(
+                        "Invalid blood request: " + request.getId(), "request");
             }
         }
         return requestsById;
@@ -167,19 +168,19 @@ public final class DataValidator {
             validateText(record.requestId(), "Fulfilment request ID");
             BloodRequest request = requestsById.get(key(record.requestId()));
             if (request == null || request.getStatus() != RequestStatus.FULFILLED) {
-                throw new IllegalArgumentException(
+                throw new ValidationException(
                         "Fulfilment references a missing or pending request: "
-                                + record.requestId());
+                                + record.requestId(), "fulfilment");
             }
             if (!fulfilledRequestIds.add(key(record.requestId()))) {
-                throw new IllegalArgumentException(
-                        "Request has more than one fulfilment: " + record.requestId());
+                throw new ValidationException(
+                        "Request has more than one fulfilment: " + record.requestId(), "fulfilment");
             }
             if (record.processedDate() == null || record.processedDate().isAfter(today)
                     || record.processedDate().isBefore(request.getRequestDate())
                     || record.unitIds().size() != request.getQuantity()) {
-                throw new IllegalArgumentException(
-                        "Invalid fulfilment details: " + record.requestId());
+                throw new ValidationException(
+                        "Invalid fulfilment details: " + record.requestId(), "fulfilment");
             }
             for (String unitId : record.unitIds()) {
                 BloodUnit unit = unitsById.get(key(unitId));
@@ -187,28 +188,28 @@ public final class DataValidator {
                         || unit.getBloodType() != request.getBloodType()
                         || record.processedDate().isBefore(unit.getDonationDate())
                         || record.processedDate().isAfter(unit.getExpiryDate())) {
-                    throw new IllegalArgumentException(
-                            "Fulfilment contains an invalid unit: " + unitId);
+                    throw new ValidationException(
+                            "Fulfilment contains an invalid unit: " + unitId, "fulfilment");
                 }
                 if (!auditedUnitIds.add(key(unitId))) {
-                    throw new IllegalArgumentException(
-                            "Unit is used by more than one request: " + unitId);
+                    throw new ValidationException(
+                            "Unit is used by more than one request: " + unitId, "fulfilment");
                 }
             }
         }
         for (BloodRequest request : requests) {
             boolean audited = fulfilledRequestIds.contains(key(request.getId()));
             if ((request.getStatus() == RequestStatus.FULFILLED) != audited) {
-                throw new IllegalArgumentException(
+                throw new ValidationException(
                         "Request status and fulfilment history disagree: "
-                                + request.getId());
+                                + request.getId(), "state");
             }
         }
         for (BloodUnit unit : units) {
             boolean audited = auditedUnitIds.contains(key(unit.getId()));
             if ((unit.getStatus() == UnitStatus.USED) != audited) {
-                throw new IllegalArgumentException(
-                        "Unit status and fulfilment history disagree: " + unit.getId());
+                throw new ValidationException(
+                        "Unit status and fulfilment history disagree: " + unit.getId(), "state");
             }
         }
     }
@@ -216,7 +217,7 @@ public final class DataValidator {
     private static void validateText(String value, String field) {
         if (value == null || value.trim().isEmpty() || value.contains("|")
                 || value.contains("\n") || value.contains("\r")) {
-            throw new IllegalArgumentException(field + " contains invalid text.");
+            throw new ValidationException(field + " contains invalid text.", field);
         }
     }
 

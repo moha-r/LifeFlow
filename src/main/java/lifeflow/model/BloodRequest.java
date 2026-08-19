@@ -3,7 +3,7 @@ package lifeflow.model;
 import java.time.LocalDate;
 
 /** Common state and behavior shared by all blood-request types. */
-public abstract class BloodRequest {
+public abstract class BloodRequest implements Identifiable {
     private String id;
     private String requesterName;
     private BloodType bloodType;

@@ -320,7 +320,7 @@ public final class JsonLifeFlowStore implements LifeFlowStore {
     private void validateForStorage(LifeFlowState state) throws IOException {
         try {
             DataValidator.validate(state, LocalDate.now(clock));
-        } catch (IllegalArgumentException exception) {
+        } catch (lifeflow.model.exception.LifeFlowException | IllegalArgumentException exception) {
             throw new IOException("LifeFlow refused invalid data: "
                     + exception.getMessage(), exception);
         }
@@ -443,6 +443,7 @@ public final class JsonLifeFlowStore implements LifeFlowStore {
         copyUnitsToPayload(state, payload.bloodUnits);
         copyRequestsToPayload(state, payload.requests);
         copyFulfilmentsToPayload(state, payload.fulfilments);
+        payload.logs = new ArrayList<>(state.getLogs());
         return payload;
     }
 
@@ -494,7 +495,7 @@ public final class JsonLifeFlowStore implements LifeFlowStore {
                     parseDate(data.externalLastDonationDate)));
         }
         return stateFromParts(revision, donors, safe(payload.bloodUnits),
-                safe(payload.requests), safe(payload.fulfilments), false);
+                safe(payload.requests), safe(payload.fulfilments), safe(payload.logs), false);
     }
 
     private static LifeFlowState fromLegacy(long revision, LegacyPayload payload) {
@@ -516,12 +517,12 @@ public final class JsonLifeFlowStore implements LifeFlowStore {
                     BloodType.valueOf(data.bloodType), external));
         }
         return stateFromParts(revision, donors, unitData, safe(payload.requests),
-                safe(payload.fulfilments), true);
+                safe(payload.fulfilments), new java.util.ArrayList<>(), true);
     }
 
     private static LifeFlowState stateFromParts(
             long revision, ArrayList<Donor> donors, List<UnitData> unitData,
-            List<RequestData> requestData, List<FulfilmentData> fulfilmentData,
+            List<RequestData> requestData, List<FulfilmentData> fulfilmentData, java.util.List<String> logData,
             boolean normaliseLegacyExpiry) {
         ArrayList<BloodUnit> units = new ArrayList<>();
         for (UnitData data : unitData) {
@@ -559,7 +560,7 @@ public final class JsonLifeFlowStore implements LifeFlowStore {
             fulfilments.add(new FulfilmentRecord(data.requestId,
                     LocalDate.parse(data.processedDate), safe(data.unitIds)));
         }
-        return new LifeFlowState(revision, donors, units, requests, fulfilments);
+        return new LifeFlowState(revision, donors, units, requests, fulfilments, logData == null ? new ArrayList<>() : new ArrayList<>(logData));
     }
 
     private static String date(LocalDate value) {
@@ -593,6 +594,8 @@ public final class JsonLifeFlowStore implements LifeFlowStore {
         public List<UnitData> bloodUnits = new ArrayList<>();
         public List<RequestData> requests = new ArrayList<>();
         public List<FulfilmentData> fulfilments = new ArrayList<>();
+        @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_EMPTY)
+        public List<String> logs = null;
     }
 
     public static final class DonorData {
@@ -623,6 +626,8 @@ public final class JsonLifeFlowStore implements LifeFlowStore {
         public List<UnitData> bloodUnits = new ArrayList<>();
         public List<RequestData> requests = new ArrayList<>();
         public List<FulfilmentData> fulfilments = new ArrayList<>();
+        @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_EMPTY)
+        public List<String> logs = null;
     }
 
     public static final class LegacyDonorData {

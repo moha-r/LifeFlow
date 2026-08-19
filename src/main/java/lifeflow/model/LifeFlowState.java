@@ -9,21 +9,23 @@ public final class LifeFlowState {
     private final ArrayList<BloodUnit> units;
     private final ArrayList<BloodRequest> requests;
     private final ArrayList<FulfilmentRecord> fulfilments;
+    private final ArrayList<String> logs;
 
     public LifeFlowState() {
         this(0, new ArrayList<>(), new ArrayList<>(), new ArrayList<>(),
-                new ArrayList<>());
+                new ArrayList<>(), new ArrayList<>());
     }
 
     public LifeFlowState(long revision, ArrayList<Donor> donors,
                          ArrayList<BloodUnit> units,
                          ArrayList<BloodRequest> requests,
-                         ArrayList<FulfilmentRecord> fulfilments) {
+                         ArrayList<FulfilmentRecord> fulfilments, ArrayList<String> logs) {
         this.revision = revision;
         this.donors = copyDonors(donors);
         this.units = copyUnits(units);
         this.requests = copyRequests(requests);
         this.fulfilments = copyFulfilments(fulfilments);
+        this.logs = logs == null ? new ArrayList<>() : new ArrayList<>(logs);
     }
 
     public long getRevision() {
@@ -46,8 +48,10 @@ public final class LifeFlowState {
         return copyFulfilments(fulfilments);
     }
 
+    public ArrayList<String> getLogs() { return new ArrayList<>(logs); }
+
     public LifeFlowState copy() {
-        return new LifeFlowState(revision, donors, units, requests, fulfilments);
+        return new LifeFlowState(revision, donors, units, requests, fulfilments, logs);
     }
 
     private static ArrayList<Donor> copyDonors(Iterable<Donor> source) {

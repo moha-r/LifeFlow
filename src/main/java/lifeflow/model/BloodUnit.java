@@ -3,7 +3,7 @@ package lifeflow.model;
 import java.time.LocalDate;
 
 /** Represents one whole-blood unit stored by the simulation. */
-public class BloodUnit {
+public class BloodUnit implements Identifiable {
     private String id;
     private String donorId;
     private BloodType bloodType;
@@ -36,6 +36,9 @@ public class BloodUnit {
         }
         if (status == UnitStatus.USED) {
             return InventoryState.USED;
+        }
+        if (status == UnitStatus.DISCARDED) {
+            return InventoryState.DISCARDED;
         }
         if (donationDate.isAfter(date)) {
             return InventoryState.SCHEDULED;
@@ -76,5 +79,27 @@ public class BloodUnit {
     /** Marks this unit as consumed by a fulfilled blood request. */
     public void markUsed() {
         status = UnitStatus.USED;
+    }
+
+    public void markDiscarded() {
+        status = UnitStatus.DISCARDED;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        BloodUnit bloodUnit = (BloodUnit) o;
+        return id.equals(bloodUnit.id);
+    }
+
+    @Override
+    public int hashCode() {
+        return java.util.Objects.hash(id);
+    }
+
+    @Override
+    public String toString() {
+        return id;
     }
 }

@@ -1,9 +1,10 @@
 package lifeflow.model;
 
 import java.time.LocalDate;
+import java.util.Locale;
 
 /** Stores one donor profile, not an internal donation event. */
-public class Donor {
+public class Donor implements Identifiable {
     private String id;
     private String name;
     private int age;
@@ -31,6 +32,7 @@ public class Donor {
         this.externalLastDonationDate = externalLastDonationDate;
     }
 
+    @Override
     public String getId() {
         return id;
     }
@@ -53,5 +55,23 @@ public class Donor {
 
     public LocalDate getExternalLastDonationDate() {
         return externalLastDonationDate;
+    }
+
+    @Override
+    public String toString() {
+        return String.format("Donor{id='%s', name='%s', age=%d, weight=%.1fkg, bloodType=%s}",
+                id, name, age, weightKg, bloodType);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (!(obj instanceof Donor other)) return false;
+        return id.equalsIgnoreCase(other.id);
+    }
+
+    @Override
+    public int hashCode() {
+        return id.toLowerCase(Locale.ROOT).hashCode();
     }
 }

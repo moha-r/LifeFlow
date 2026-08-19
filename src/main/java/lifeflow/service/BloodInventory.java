@@ -35,9 +35,19 @@ public class BloodInventory {
 
     public ArrayList<BloodUnit> getAvailableUnits(BloodType bloodType,
                                                    LocalDate date) {
+        return getCompatibleUnits(bloodType, lifeflow.model.MatchMode.EXACT, date);
+    }
+
+    public ArrayList<BloodUnit> getCompatibleUnits(BloodType requestType,
+                                                   lifeflow.model.MatchMode matchMode,
+                                                   LocalDate date) {
         ArrayList<BloodUnit> available = new ArrayList<>();
         for (BloodUnit unit : units) {
-            if (unit.getBloodType() == bloodType && unit.isAvailable(date)) {
+            boolean matches = matchMode == lifeflow.model.MatchMode.COMPATIBLE
+                    ? requestType.canReceiveFrom(unit.getBloodType())
+                    : unit.getBloodType() == requestType;
+
+            if (matches && unit.isAvailable(date)) {
                 available.add(unit);
             }
         }
