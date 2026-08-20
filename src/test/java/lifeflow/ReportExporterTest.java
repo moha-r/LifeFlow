@@ -94,6 +94,70 @@ final class ReportExporterTest {
         assertTrue(content.contains("&lt;script&gt;alert"));
     }
 
+    @Test
+    void appointmentsReportIncludesStatusAndLinkedRequests() throws Exception {
+        Path file = directory.resolve("appointments.csv");
+        CsvReportExporter.exportAppointments(file, state());
+        String content = Files.readString(file);
+        assertTrue(content.contains("Appointment ID,Donor ID,Hospital ID,"
+                + "Appointment Date,Linked Request,Status"));
+        assertTrue(content.contains("A000001"));
+        assertTrue(content.contains("R000001"));
+        assertTrue(content.contains("BOOKED"));
+    }
+
+    @Test
+    void summaryHtmlContainsAppointmentsSection() throws Exception {
+        Path file = directory.resolve("summary.html");
+        HtmlReportExporter.exportSummary(file, state(), TODAY);
+        String content = Files.readString(file);
+        assertTrue(content.contains("Donation Appointments"));
+        assertTrue(content.contains("Upcoming Appointments"));
+        assertTrue(content.contains("A000001"));
+    }
+
+    @Test
+    void reportsExcludePartialFulfilmentRecords() throws Exception {
+        LifeFlowState partial = new LifeFlowState(4,
+                new ArrayList<>(List.of(new Donor("D000001", "Aisha", 25, 55.0,
+                        BloodType.A_POS, null))),
+                new ArrayList<>(List.of(
+                        new BloodUnit("U000001", "D000001", BloodType.A_POS,
+                                TODAY.minusDays(2), TODAY.plusDays(33),
+                                UnitStatus.RESERVED),
+                        new BloodUnit("U000002", "D000001", BloodType.A_POS,
+                                TODAY.minusDays(1), TODAY.plusDays(34),
+                                UnitStatus.USED))),
+                new ArrayList<>(List.of(
+                        new RegularRequest("R000001", "Clinic",
+                                BloodType.A_POS, 2, TODAY.minusDays(1),
+                                RequestStatus.FULFILLED),
+                        new RegularRequest("R000002", "Clinic",
+                                BloodType.A_POS, 2, TODAY,
+                                RequestStatus.PENDING))),
+                new ArrayList<>(List.of(
+                        new FulfilmentRecord("R000001", TODAY.minusDays(1),
+                                List.of("U000002")),
+                        new FulfilmentRecord("R000002", TODAY,
+                                List.of("U000001")))),
+                new ArrayList<>(),
+                new ArrayList<>());
+
+        Path csv = directory.resolve("audit.csv");
+        CsvReportExporter.exportAudit(csv, partial);
+        String content = Files.readString(csv);
+        assertTrue(content.contains("R000001"));
+        assertFalse(content.contains("R000002"));
+
+        Path html = directory.resolve("summary.html");
+        HtmlReportExporter.exportSummary(html, partial, TODAY);
+        String htmlContent = Files.readString(html);
+        assertTrue(htmlContent.contains("R000001"));
+        String fulfilmentSection = htmlContent.substring(
+                htmlContent.indexOf("Fulfilment History"));
+        assertFalse(fulfilmentSection.contains("R000002"));
+    }
+
     private static LifeFlowState state() {
         Donor donor = new Donor("D000001", "Aisha", 25, 55.0, BloodType.A_POS,
                 null);
@@ -105,6 +169,14 @@ final class ReportExporterTest {
                 BloodType.O_NEG, 2, TODAY, RequestStatus.PENDING);
         FulfilmentRecord record = new FulfilmentRecord("R000001",
                 TODAY.minusDays(1), List.of("U000001"));
+        lifeflow.model.DonationAppointment completed =
+                new lifeflow.model.DonationAppointment("A000001", "D000001",
+                        "H1", TODAY.minusDays(3), "R000001",
+                        lifeflow.model.AppointmentStatus.COMPLETED);
+        lifeflow.model.DonationAppointment upcoming =
+                new lifeflow.model.DonationAppointment("A000002", "D000001",
+                        "H1", TODAY.plusDays(4), "R000002",
+                        lifeflow.model.AppointmentStatus.BOOKED);
         ArrayList<String> logs = new ArrayList<>(List.of(
                 "[2026-08-20 10:00:00] Added donor D000001 (A_POS)",
                 "[2026-08-20 10:05:00] Fulfilled request R000001 (1 units)"));
@@ -113,6 +185,7 @@ final class ReportExporterTest {
                 new ArrayList<>(List.of(unit)),
                 new ArrayList<>(List.of(regular, emergency)),
                 new ArrayList<>(List.of(record)),
+                new ArrayList<>(List.of(completed, upcoming)),
                 logs);
     }
 }

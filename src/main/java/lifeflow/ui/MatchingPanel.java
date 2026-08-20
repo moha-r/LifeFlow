@@ -40,6 +40,7 @@ import lifeflow.model.MatchResult;
 @SuppressWarnings("serial")
 public final class MatchingPanel extends JPanel implements lifeflow.service.StateObserver {
     private final LifeFlowController controller;
+    private final Runnable onDataChanged;
     private final Consumer<UiNotice> status;
 
     private final DefaultTableModel requestsModel = UiComponents.readOnlyModel("Request ID", "Kind", "Blood Type", "Qty");
@@ -70,6 +71,7 @@ public final class MatchingPanel extends JPanel implements lifeflow.service.Stat
     public MatchingPanel(LifeFlowController controller, Runnable onDataChanged, Consumer<UiNotice> status) {
         super(new BorderLayout());
         this.controller = controller;
+        this.onDataChanged = onDataChanged;
         this.status = status;
         setBackground(UiTheme.BACKGROUND);
 
@@ -255,6 +257,7 @@ public final class MatchingPanel extends JPanel implements lifeflow.service.Stat
         lifeflow.model.MatchMode mode = (lifeflow.model.MatchMode) matchModeSelector.getSelectedItem();
         try {
             MatchResult result = controller.processSpecificRequest(selectedRequestId, controller.today(), mode);
+            onDataChanged.run();
             if (result.outcome() == MatchOutcome.INSUFFICIENT_STOCK) {
                 status.accept(UiNotice.warning("Matching paused: insufficient compatible stock."));
             } else if (result.outcome() == MatchOutcome.FULFILLED) {
@@ -262,7 +265,6 @@ public final class MatchingPanel extends JPanel implements lifeflow.service.Stat
             } else {
                 status.accept(UiNotice.info("No request was processed."));
             }
-            // Controller will call onStateChanged automatically
         } catch (LifeFlowException | IOException exception) {
             status.accept(UiNotice.warning("Error: " + exception.getMessage()));
         }

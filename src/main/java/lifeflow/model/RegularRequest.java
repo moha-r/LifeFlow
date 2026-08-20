@@ -7,7 +7,14 @@ public class RegularRequest extends BloodRequest {
     public RegularRequest(String id, String requesterName, BloodType bloodType,
                           int quantity, LocalDate requestDate,
                           RequestStatus status) {
-        super(id, requesterName, bloodType, quantity, requestDate, status);
+        super(id, requesterName, bloodType, quantity, requestDate, status, null);
+    }
+
+    public RegularRequest(String id, String requesterName, BloodType bloodType,
+                          int quantity, LocalDate requestDate,
+                          RequestStatus status, String hospitalId) {
+        super(id, requesterName, bloodType, quantity, requestDate, status,
+                hospitalId);
     }
 
     @Override

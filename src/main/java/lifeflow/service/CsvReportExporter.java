@@ -11,6 +11,7 @@ import lifeflow.model.Donor;
 import lifeflow.model.EligibilityResult;
 import lifeflow.model.FulfilmentRecord;
 import lifeflow.model.LifeFlowState;
+import lifeflow.model.RequestStatus;
 import java.time.LocalDate;
 
 public class CsvReportExporter {
@@ -76,12 +77,32 @@ public class CsvReportExporter {
         }
     }
 
+    public static void exportAppointments(Path path, LifeFlowState state)
+            throws IOException {
+        try (BufferedWriter writer = Files.newBufferedWriter(path, StandardCharsets.UTF_8)) {
+            writer.write('\ufeff');
+            writer.write("Appointment ID,Donor ID,Hospital ID,Appointment Date,"
+                    + "Linked Request,Status\n");
+            for (lifeflow.model.DonationAppointment appointment
+                    : state.getAppointments()) {
+                writer.write(String.format("%s,%s,%s,%s,%s,%s\n",
+                        appointment.getId(),
+                        appointment.getDonorId(),
+                        appointment.getHospitalId(),
+                        appointment.getAppointmentDate(),
+                        appointment.getLinkedRequestId() == null ? ""
+                                : appointment.getLinkedRequestId(),
+                        appointment.getStatus().name()));
+            }
+        }
+    }
+
     public static void exportAudit(Path path, LifeFlowState state) throws IOException {
         try (BufferedWriter writer = Files.newBufferedWriter(path, StandardCharsets.UTF_8)) {
             writer.write('\ufeff');
             writer.write("Fulfilment History\n");
             writer.write("Request ID,Processed On,Units\n");
-            for (FulfilmentRecord record : state.getFulfilments()) {
+            for (FulfilmentRecord record : completedRecords(state)) {
                 writer.write(String.format("%s,%s,\"%s\"\n",
                         record.requestId(), record.processedDate(),
                         String.join(" | ", record.unitIds())));
@@ -100,6 +121,15 @@ public class CsvReportExporter {
                         message.replace("\"", "'").replace("\n", " ")));
             }
         }
+    }
+
+    private static java.util.List<FulfilmentRecord> completedRecords(LifeFlowState state) {
+        return state.getFulfilments().stream()
+                .filter(record -> state.getRequests().stream()
+                        .anyMatch(request -> request.getId()
+                                .equalsIgnoreCase(record.requestId())
+                                && request.getStatus() == RequestStatus.FULFILLED))
+                .toList();
     }
 
     private static LocalDate effectiveLastDonation(LifeFlowState state, String donorId) {

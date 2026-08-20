@@ -7,6 +7,7 @@ import lifeflow.model.BloodType;
 import lifeflow.model.BloodUnit;
 import lifeflow.model.FulfilmentRecord;
 import lifeflow.model.LifeFlowState;
+import lifeflow.model.RequestStatus;
 
 import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
@@ -74,6 +75,11 @@ public class ReportsPanel extends JPanel {
                 (path) -> CsvReportExporter.exportRequests(path,
                         controller.getStateSnapshot())));
 
+        JButton appointmentsButton = UiComponents.secondaryButton("Appointments CSV");
+        appointmentsButton.addActionListener(e -> exportCsv("appointments_report.csv",
+                (path) -> CsvReportExporter.exportAppointments(path,
+                        controller.getStateSnapshot())));
+
         JButton auditButton = UiComponents.secondaryButton("Audit CSV");
         auditButton.addActionListener(e -> exportCsv("audit_report.csv",
                 (path) -> CsvReportExporter.exportAudit(path,
@@ -87,6 +93,7 @@ public class ReportsPanel extends JPanel {
         actions.add(inventoryButton);
         actions.add(donorsButton);
         actions.add(requestsButton);
+        actions.add(appointmentsButton);
         actions.add(auditButton);
         actions.add(summaryButton);
         return actions;
@@ -271,11 +278,16 @@ public class ReportsPanel extends JPanel {
         fulfilmentModel.setRowCount(0);
         for (FulfilmentRecord record : snapshot.getFulfilments()) {
             String bloodType = "";
+            boolean completed = false;
             for (BloodRequest request : requests) {
                 if (request.getId().equalsIgnoreCase(record.requestId())) {
                     bloodType = request.getBloodType().name();
+                    completed = request.getStatus() == RequestStatus.FULFILLED;
                     break;
                 }
+            }
+            if (!completed) {
+                continue;
             }
             fulfilmentModel.addRow(new Object[]{record.requestId(),
                     record.processedDate().toString(), bloodType,

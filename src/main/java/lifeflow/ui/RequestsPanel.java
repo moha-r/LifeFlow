@@ -41,7 +41,7 @@ public final class RequestsPanel extends JPanel implements lifeflow.service.Stat
     private final Consumer<UiNotice> status;
     private final DefaultTableModel model = UiComponents.readOnlyModel(
             "Request ID", "Kind", "Requester", "Blood Type", "Quantity",
-            "Date", "Priority", "Status");
+            "Date", "Priority", "Status", "Volunteers");
     private final JTable table = new JTable(model);
     private final TableRowSorter<DefaultTableModel> sorter = new TableRowSorter<>(model);
     private final JTextField search = UiComponents.searchField("Search requests");
@@ -70,7 +70,7 @@ public final class RequestsPanel extends JPanel implements lifeflow.service.Stat
         table.setRowSorter(sorter);
         table.getColumnModel().getColumn(1).setCellRenderer(UiComponents.statusRenderer());
         table.getColumnModel().getColumn(7).setCellRenderer(UiComponents.statusRenderer());
-        int[] widths = {90, 95, 175, 100, 75, 110, 70, 100};
+        int[] widths = {90, 95, 175, 100, 75, 110, 70, 100, 80};
         for (int column = 0; column < widths.length; column++) {
             table.getColumnModel().getColumn(column).setPreferredWidth(widths[column]);
         }
@@ -358,9 +358,9 @@ public final class RequestsPanel extends JPanel implements lifeflow.service.Stat
                             "EMERGENCY".equals(kind.getSelectedItem()));
                 }
                 dialog.dispose();
-                
                 status.accept(UiNotice.success(editing ? "Blood request updated."
                         : "Blood request created successfully."));
+                onDataChanged.run();
             } catch (NumberFormatException exception) {
                 error.setText("Quantity must be a valid whole number.");
             } catch (LifeFlowException | IOException exception) {
@@ -426,7 +426,8 @@ public final class RequestsPanel extends JPanel implements lifeflow.service.Stat
             model.addRow(new Object[]{request.getId(), request.getKind(),
                     request.getRequesterName(), DashboardPanel.displayType(request.getBloodType()),
                     request.getQuantity(), request.getRequestDate(), request.getPriority(),
-                    request.getStatus()});
+                    request.getStatus(),
+                    controller.getVolunteerCountForRequest(request.getId())});
         }
         recordCount.setText(sorter.getViewRowCount() + " RECORDS");
         centerLayout.show(center, model.getRowCount() == 0 ? "empty" : "table");

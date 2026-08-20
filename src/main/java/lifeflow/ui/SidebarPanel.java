@@ -23,10 +23,12 @@ import javax.swing.JPanel;
 @SuppressWarnings("serial")
 public final class SidebarPanel extends JPanel {
     private static final String[] PAGES = {
-        "Dashboard", "Donors", "Blood Inventory", "Blood Requests", "Matching", "Reports"
+        "Dashboard", "Donors", "Blood Inventory", "Blood Requests", "Matching",
+        "Reports", "Appointments", "Donation Centers"
     };
     private static final String[] LABELS = {
-        "Overview", "Donors", "Inventory", "Requests", "Matching", "Reports"
+        "Overview", "Donors", "Inventory", "Requests", "Matching", "Reports",
+        "Appointments", "Donation Centers"
     };
     private static final int H_GAP = 14;
 

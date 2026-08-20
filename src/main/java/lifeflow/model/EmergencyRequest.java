@@ -7,7 +7,14 @@ public class EmergencyRequest extends BloodRequest {
     public EmergencyRequest(String id, String requesterName, BloodType bloodType,
                             int quantity, LocalDate requestDate,
                             RequestStatus status) {
-        super(id, requesterName, bloodType, quantity, requestDate, status);
+        super(id, requesterName, bloodType, quantity, requestDate, status, null);
+    }
+
+    public EmergencyRequest(String id, String requesterName, BloodType bloodType,
+                            int quantity, LocalDate requestDate,
+                            RequestStatus status, String hospitalId) {
+        super(id, requesterName, bloodType, quantity, requestDate, status,
+                hospitalId);
     }
 
     @Override

@@ -10,6 +10,8 @@ import javax.swing.JComponent;
 import javax.swing.JDialog;
 import javax.swing.KeyStroke;
 import javax.swing.SwingUtilities;
+import lifeflow.service.DonorRegistry;
+import lifeflow.service.DonorSignupService;
 import lifeflow.service.HospitalRegistry;
 
 /** Undecorated modal dialog hosting the role-aware sign-in screen. */
@@ -17,16 +19,18 @@ import lifeflow.service.HospitalRegistry;
 public final class LoginDialog extends JDialog {
     private LoginResult result;
 
-    private LoginDialog(HospitalRegistry registry) {
+    private LoginDialog(HospitalRegistry registry, DonorRegistry donorRegistry,
+                        DonorSignupService signupService) {
         super((Frame) null, "LifeFlow — Admin Sign In");
         setModal(true);
         setUndecorated(true);
         setBackground(new Color(0, 0, 0, 0));
 
-        LoginPanel panel = new LoginPanel(registry, outcome -> {
-            result = outcome;
-            dispose();
-        });
+        LoginPanel panel = new LoginPanel(registry, donorRegistry, signupService,
+                outcome -> {
+                    result = outcome;
+                    dispose();
+                });
         panel.setRoleChangeListener(role -> setTitle("LifeFlow — " + role + " Sign In"));
         setContentPane(panel);
         pack();
@@ -52,8 +56,10 @@ public final class LoginDialog extends JDialog {
      * Shows the dialog and blocks until it closes.
      * Returns the signed-in session, or null when the user cancelled.
      */
-    public static LoginResult showAndAuthenticate(HospitalRegistry registry) {
-        LoginDialog dialog = new LoginDialog(registry);
+    public static LoginResult showAndAuthenticate(HospitalRegistry registry,
+                                                  DonorRegistry donorRegistry,
+                                                  DonorSignupService signupService) {
+        LoginDialog dialog = new LoginDialog(registry, donorRegistry, signupService);
         dialog.setVisible(true);
         return dialog.result;
     }

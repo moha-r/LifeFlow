@@ -9,22 +9,34 @@ public final class LifeFlowState {
     private final ArrayList<BloodUnit> units;
     private final ArrayList<BloodRequest> requests;
     private final ArrayList<FulfilmentRecord> fulfilments;
+    private final ArrayList<DonationAppointment> appointments;
     private final ArrayList<String> logs;
 
     public LifeFlowState() {
         this(0, new ArrayList<>(), new ArrayList<>(), new ArrayList<>(),
-                new ArrayList<>(), new ArrayList<>());
+                new ArrayList<>(), new ArrayList<>(), new ArrayList<>());
     }
 
     public LifeFlowState(long revision, ArrayList<Donor> donors,
                          ArrayList<BloodUnit> units,
                          ArrayList<BloodRequest> requests,
                          ArrayList<FulfilmentRecord> fulfilments, ArrayList<String> logs) {
+        this(revision, donors, units, requests, fulfilments,
+                new ArrayList<>(), logs);
+    }
+
+    public LifeFlowState(long revision, ArrayList<Donor> donors,
+                         ArrayList<BloodUnit> units,
+                         ArrayList<BloodRequest> requests,
+                         ArrayList<FulfilmentRecord> fulfilments,
+                         ArrayList<DonationAppointment> appointments,
+                         ArrayList<String> logs) {
         this.revision = revision;
         this.donors = copyDonors(donors);
         this.units = copyUnits(units);
         this.requests = copyRequests(requests);
         this.fulfilments = copyFulfilments(fulfilments);
+        this.appointments = copyAppointments(appointments);
         this.logs = logs == null ? new ArrayList<>() : new ArrayList<>(logs);
     }
 
@@ -48,10 +60,15 @@ public final class LifeFlowState {
         return copyFulfilments(fulfilments);
     }
 
+    public ArrayList<DonationAppointment> getAppointments() {
+        return copyAppointments(appointments);
+    }
+
     public ArrayList<String> getLogs() { return new ArrayList<>(logs); }
 
     public LifeFlowState copy() {
-        return new LifeFlowState(revision, donors, units, requests, fulfilments, logs);
+        return new LifeFlowState(revision, donors, units, requests, fulfilments,
+                appointments, logs);
     }
 
     private static ArrayList<Donor> copyDonors(Iterable<Donor> source) {
@@ -82,11 +99,13 @@ public final class LifeFlowState {
             if (request instanceof EmergencyRequest) {
                 copy = new EmergencyRequest(request.getId(), request.getRequesterName(),
                         request.getBloodType(), request.getQuantity(),
-                        request.getRequestDate(), request.getStatus());
+                        request.getRequestDate(), request.getStatus(),
+                        request.getHospitalId());
             } else {
                 copy = new RegularRequest(request.getId(), request.getRequesterName(),
                         request.getBloodType(), request.getQuantity(),
-                        request.getRequestDate(), request.getStatus());
+                        request.getRequestDate(), request.getStatus(),
+                        request.getHospitalId());
             }
             copies.add(copy);
         }
@@ -99,6 +118,18 @@ public final class LifeFlowState {
         for (FulfilmentRecord record : source) {
             copies.add(new FulfilmentRecord(record.requestId(),
                     record.processedDate(), record.unitIds()));
+        }
+        return copies;
+    }
+
+    private static ArrayList<DonationAppointment> copyAppointments(
+            Iterable<DonationAppointment> source) {
+        ArrayList<DonationAppointment> copies = new ArrayList<>();
+        for (DonationAppointment appointment : source) {
+            copies.add(new DonationAppointment(appointment.getId(),
+                    appointment.getDonorId(), appointment.getHospitalId(),
+                    appointment.getAppointmentDate(),
+                    appointment.getLinkedRequestId(), appointment.getStatus()));
         }
         return copies;
     }

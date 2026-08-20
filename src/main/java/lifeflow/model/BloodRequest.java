@@ -7,6 +7,7 @@ import java.util.Locale;
 public abstract class BloodRequest implements Identifiable {
     private String id;
     private String requesterName;
+    private String hospitalId;
     private BloodType bloodType;
     private int quantity;
     private LocalDate requestDate;
@@ -15,12 +16,19 @@ public abstract class BloodRequest implements Identifiable {
     protected BloodRequest(String id, String requesterName, BloodType bloodType,
                            int quantity, LocalDate requestDate,
                            RequestStatus status) {
+        this(id, requesterName, bloodType, quantity, requestDate, status, null);
+    }
+
+    protected BloodRequest(String id, String requesterName, BloodType bloodType,
+                           int quantity, LocalDate requestDate,
+                           RequestStatus status, String hospitalId) {
         this.id = id;
         this.requesterName = requesterName;
         this.bloodType = bloodType;
         this.quantity = quantity;
         this.requestDate = requestDate;
         this.status = status;
+        this.hospitalId = hospitalId;
     }
 
     /** Returns a higher number for requests that should be processed first. */
@@ -34,6 +42,11 @@ public abstract class BloodRequest implements Identifiable {
 
     public String getRequesterName() {
         return requesterName;
+    }
+
+    /** Returns the hospital that placed this request, or null for admin-created ones. */
+    public String getHospitalId() {
+        return hospitalId;
     }
 
     public BloodType getBloodType() {

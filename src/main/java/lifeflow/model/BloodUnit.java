@@ -41,6 +41,9 @@ public class BloodUnit implements Identifiable {
         if (status == UnitStatus.DISCARDED) {
             return InventoryState.DISCARDED;
         }
+        if (status == UnitStatus.RESERVED) {
+            return InventoryState.RESERVED;
+        }
         if (donationDate.isAfter(date)) {
             return InventoryState.SCHEDULED;
         }
@@ -80,6 +83,16 @@ public class BloodUnit implements Identifiable {
     /** Marks this unit as consumed by a fulfilled blood request. */
     public void markUsed() {
         status = UnitStatus.USED;
+    }
+
+    /** Commits this unit to a pending request that is not yet fully covered. */
+    public void markReserved() {
+        status = UnitStatus.RESERVED;
+    }
+
+    /** Releases a reserved unit back to the general stock. */
+    public void markAvailable() {
+        status = UnitStatus.AVAILABLE;
     }
 
     public void markDiscarded() {

@@ -45,6 +45,10 @@ public final class NavigationIcon implements Icon {
             paintInventory(copy, x, y);
         } else if (page.equals("Blood Requests")) {
             paintList(copy, x, y);
+        } else if (page.equals("Appointments")) {
+            paintCalendar(copy, x, y);
+        } else if (page.equals("Donation Centers")) {
+            paintPin(copy, x, y);
         } else {
             paintMatch(copy, x, y);
         }
@@ -75,6 +79,22 @@ public final class NavigationIcon implements Icon {
             graphics.fillOval(x + 1, lineY - 1, 2, 2);
             graphics.drawLine(x + 6, lineY, x + 15, lineY);
         }
+    }
+
+    private static void paintCalendar(Graphics2D graphics, int x, int y) {
+        graphics.drawRoundRect(x + 1, y + 3, 14, 11, 2, 2);
+        graphics.drawLine(x + 4, y + 1, x + 4, y + 6);
+        graphics.drawLine(x + 12, y + 1, x + 12, y + 6);
+        graphics.drawLine(x + 1, y + 7, x + 15, y + 7);
+        graphics.fillOval(x + 7, y + 9, 2, 2);
+        graphics.fillOval(x + 11, y + 9, 2, 2);
+        graphics.fillOval(x + 7, y + 12, 2, 2);
+    }
+
+    private static void paintPin(Graphics2D graphics, int x, int y) {
+        graphics.drawOval(x + 5, y + 2, 6, 6);
+        graphics.drawArc(x + 2, y + 7, 12, 9, 0, 180);
+        graphics.drawLine(x + 8, y + 14, x + 8, y + 15);
     }
 
     private static void paintMatch(Graphics2D graphics, int x, int y) {

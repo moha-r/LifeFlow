@@ -92,11 +92,73 @@ final class HospitalRegistryTest {
         assertFalse(reloaded.authenticate("alpha", "nope") != null);
     }
 
-    private static HospitalRegistry registry() throws Exception {
-        Clock clock = Clock.fixed(TODAY.atStartOfDay(ZoneId.systemDefault()).toInstant(),
+    @Test
+    void updateReplacesNameKeepingIdAndCredentials() throws Exception {
+        HospitalRegistry registry = registry();
+        Hospital hospital = registry.register("Hospital A", "alpha", "pass123");
+        assertThrows(ValidationException.class, () ->
+                registry.update(new Hospital("H1", "  ", "alpha", "pass123",
+                        TODAY)));
+
+        Hospital updated = new Hospital(hospital.getId(), "Renamed Hospital",
+                hospital.getUsername(), hospital.getPassword(),
+                hospital.getRegistrationDate());
+        assertEquals(updated, registry.update(updated));
+        assertEquals("Renamed Hospital",
+                registry.authenticate("alpha", "pass123").getName());
+        assertEquals(1, registry.findAll().size());
+    }
+
+    @Test
+    void updateUnknownIdIsRejected() throws Exception {
+        HospitalRegistry registry = registry();
+        registry.register("Hospital A", "alpha", "pass123");
+
+        assertThrows(lifeflow.model.exception.EntityNotFoundException.class,
+                () -> registry.update(new Hospital("MISSING", "Hospital B",
+                        "beta", "pass123", TODAY)));
+        assertEquals(1, registry.findAll().size());
+    }
+
+    @Test
+    void removeDeletesAccountAndSaves() throws Exception {
+        HospitalRegistry registry = registry();
+        registry.register("Hospital A", "alpha", "pass123");
+        registry.register("Hospital B", "beta", "pass456");
+
+        assertTrue(registry.remove("H1"));
+        assertNull(registry.authenticate("alpha", "pass123"));
+        assertEquals(1, registry.findAll().size());
+        assertFalse(registry.remove("H1"));
+        assertFalse(registry.remove("MISSING"));
+    }
+
+    @Test
+    void registrationContinuesPastTakenCandidateIds() throws Exception {
+        java.nio.file.Path dir = Files.createTempDirectory("lifeflow-hosp-");
+        HospitalRegistry registry = new HospitalRegistry(new ArrayList<>(),
+                new JsonHospitalStore(dir), fixedClock());
+        registry.register("Hospital One", "one", "pass123");
+        registry.register("Hospital Two", "two", "pass123");
+        registry.register("Hospital Three", "three", "pass123");
+        registry.register("Hospital Four", "four", "pass123");
+        registry.remove("H1");
+        registry.remove("H2");
+
+        Hospital hospital = registry.register("Hospital Five", "five", "pass123");
+
+        assertEquals("H5", hospital.getId());
+        assertEquals(3, registry.findAll().size());
+    }
+
+    private static Clock fixedClock() {
+        return Clock.fixed(TODAY.atStartOfDay(ZoneId.systemDefault()).toInstant(),
                 ZoneId.systemDefault());
+    }
+
+    private static HospitalRegistry registry() throws Exception {
         return new HospitalRegistry(new ArrayList<>(),
                 new JsonHospitalStore(Files.createTempDirectory("lifeflow-hosp-")),
-                clock);
+                fixedClock());
     }
 }

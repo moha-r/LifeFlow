@@ -346,7 +346,7 @@ public final class DonorsPanel extends JPanel implements lifeflow.service.StateO
                 EligibilityResult result = controller.checkDonorEligibility(
                         editing ? donor.getId() : id.getText(), controller.today());
                 dialog.dispose();
-                
+                onDataChanged.run();
                 status.accept(donorNotice(editing, result));
             } catch (DateTimeParseException exception) {
                 setFeedback(feedback, "Use yyyy-MM-dd for the external date.",

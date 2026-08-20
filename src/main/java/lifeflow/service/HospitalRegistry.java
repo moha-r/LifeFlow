@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Objects;
 import lifeflow.model.Hospital;
 import lifeflow.model.exception.DuplicateIdException;
+import lifeflow.model.exception.EntityNotFoundException;
 import lifeflow.model.exception.ValidationException;
 import lifeflow.persistence.JsonHospitalStore;
 
@@ -50,10 +51,7 @@ public final class HospitalRegistry implements AutoCloseable {
                 throw new DuplicateIdException("Hospital username", account);
             }
         }
-        String id = "H" + (hospitals.size() + 1);
-        while (findById(id) != null) {
-            id = "H" + (hospitals.size() + 2);
-        }
+        String id = nextHospitalId();
         Hospital hospital = new Hospital(id, hospitalName, account, password,
                 LocalDate.now(clock));
         hospitals.add(hospital);
@@ -84,8 +82,62 @@ public final class HospitalRegistry implements AutoCloseable {
         return null;
     }
 
+    /** Returns the next free hospital id, always above every existing one. */
+    private String nextHospitalId() {
+        long highest = 0;
+        for (Hospital hospital : hospitals) {
+            String existing = hospital.getId();
+            if (existing == null || existing.length() <= 1
+                    || !existing.regionMatches(true, 0, "H", 0, 1)) {
+                continue;
+            }
+            String number = existing.substring(1);
+            if (number.chars().allMatch(Character::isDigit)) {
+                try {
+                    highest = Math.max(highest, Long.parseLong(number));
+                } catch (NumberFormatException ignored) {
+                    // Custom identifiers outside the long range do not affect numbering.
+                }
+            }
+        }
+        return "H" + (highest + 1);
+    }
+
+    /** Replaces the hospital with the same id; the change is saved immediately. */
+    public Hospital update(Hospital hospital) throws IOException {
+        Objects.requireNonNull(hospital, "hospital");
+        safeName(hospital.getName(), "Hospital name");
+        int index = indexOf(hospital.getId());
+        if (index < 0) {
+            throw new EntityNotFoundException("Hospital", hospital.getId());
+        }
+        hospitals.set(index, hospital);
+        store.save(hospitals);
+        return hospital;
+    }
+
+    /** Removes the hospital account; returns false when no such id exists. */
+    public boolean remove(String id) throws IOException {
+        int index = indexOf(id);
+        if (index < 0) {
+            return false;
+        }
+        hospitals.remove(index);
+        store.save(hospitals);
+        return true;
+    }
+
     public List<Hospital> findAll() {
         return new java.util.ArrayList<>(hospitals);
+    }
+
+    private int indexOf(String id) {
+        for (int index = 0; index < hospitals.size(); index++) {
+            if (hospitals.get(index).getId().equalsIgnoreCase(id)) {
+                return index;
+            }
+        }
+        return -1;
     }
 
     private static String required(String value, String fieldName) {

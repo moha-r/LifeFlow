@@ -24,6 +24,8 @@ import lifeflow.model.BloodUnit;
 import lifeflow.model.Donor;
 import lifeflow.model.FulfilmentRecord;
 import lifeflow.model.LifeFlowState;
+import lifeflow.model.RegularRequest;
+import lifeflow.model.RequestStatus;
 import lifeflow.persistence.JsonLifeFlowStore;
 import lifeflow.persistence.StoragePaths;
 import org.junit.jupiter.api.Test;
@@ -359,6 +361,24 @@ final class JsonLifeFlowStoreTest {
 
         assertEquals(Path.of("/tmp/lifeflow-custom").toAbsolutePath(), fromEnvironment);
         assertEquals(Path.of("/users/test/.lifeflow").toAbsolutePath(), fromHome);
+    }
+
+    @Test
+    void requestHospitalIdSurvivesSaveAndReload() throws Exception {
+        RegularRequest request = new RegularRequest("R1", "City Hospital",
+                BloodType.O_POS, 2, LocalDate.of(2026, 8, 20),
+                RequestStatus.PENDING, "H1");
+        LifeFlowState state = new LifeFlowState(1, new ArrayList<>(),
+                new ArrayList<>(), new ArrayList<>(List.of(request)),
+                new ArrayList<>(), new ArrayList<>());
+
+        try (JsonLifeFlowStore store = new JsonLifeFlowStore(directory)) {
+            store.save(state);
+        }
+
+        try (JsonLifeFlowStore store = new JsonLifeFlowStore(directory)) {
+            assertEquals("H1", store.load().getRequests().get(0).getHospitalId());
+        }
     }
 
     private static LifeFlowState stateWithDonor(long revision, String id) {

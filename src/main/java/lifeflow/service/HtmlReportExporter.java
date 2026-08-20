@@ -15,6 +15,7 @@ import lifeflow.model.Donor;
 import lifeflow.model.EligibilityResult;
 import lifeflow.model.FulfilmentRecord;
 import lifeflow.model.LifeFlowState;
+import lifeflow.model.RequestStatus;
 
 /** Exports a single self-contained HTML summary, printable to PDF from a browser. */
 public final class HtmlReportExporter {
@@ -46,12 +47,16 @@ public final class HtmlReportExporter {
         long fulfilled = state.getRequests().stream()
                 .filter(request -> request.getStatus()
                         == lifeflow.model.RequestStatus.FULFILLED).count();
+        long upcoming = state.getAppointments().stream()
+                .filter(appointment -> appointment.isBooked()
+                        && !appointment.isStale(today)).count();
 
         html.append("<div class=\"metrics\">\n");
         html.append(metric("Registered Donors", state.getDonors().size()));
         html.append(metric("Available Units", availableUnits));
         html.append(metric("Pending Requests", pending));
         html.append(metric("Fulfilled Requests", fulfilled));
+        html.append(metric("Upcoming Appointments", upcoming));
         html.append("</div>\n");
 
         html.append("<section><h2>Inventory by Blood Type</h2>\n<table>");
@@ -101,9 +106,26 @@ public final class HtmlReportExporter {
         }
         html.append("</table></section>\n");
 
+        html.append("<section><h2>Donation Appointments</h2>\n<table>");
+        html.append("<tr><th>ID</th><th>Donor</th><th>Hospital</th><th>Date</th>"
+                + "<th>Linked Request</th><th>Status</th></tr>\n");
+        for (lifeflow.model.DonationAppointment appointment
+                : state.getAppointments()) {
+            html.append("<tr><td>").append(escape(appointment.getId()))
+                    .append("</td><td>").append(escape(appointment.getDonorId()))
+                    .append("</td><td>").append(escape(appointment.getHospitalId()))
+                    .append("</td><td>").append(appointment.getAppointmentDate())
+                    .append("</td><td>")
+                    .append(appointment.getLinkedRequestId() == null ? "&mdash;"
+                            : escape(appointment.getLinkedRequestId()))
+                    .append("</td><td>").append(appointment.getStatus().name())
+                    .append("</td></tr>\n");
+        }
+        html.append("</table></section>\n");
+
         html.append("<section><h2>Fulfilment History</h2>\n<table>");
         html.append("<tr><th>Request ID</th><th>Processed On</th><th>Units</th></tr>\n");
-        for (FulfilmentRecord record : state.getFulfilments()) {
+        for (FulfilmentRecord record : completedRecords(state)) {
             html.append("<tr><td>").append(escape(record.requestId()))
                     .append("</td><td>").append(record.processedDate())
                     .append("</td><td>").append(escape(String.join(", ", record.unitIds())))
@@ -134,6 +156,15 @@ public final class HtmlReportExporter {
         try (BufferedWriter writer = Files.newBufferedWriter(path, StandardCharsets.UTF_8)) {
             writer.write(html.toString());
         }
+    }
+
+    private static java.util.List<FulfilmentRecord> completedRecords(LifeFlowState state) {
+        return state.getFulfilments().stream()
+                .filter(record -> state.getRequests().stream()
+                        .anyMatch(request -> request.getId()
+                                .equalsIgnoreCase(record.requestId())
+                                && request.getStatus() == RequestStatus.FULFILLED))
+                .toList();
     }
 
     private static String metric(String label, long value) {

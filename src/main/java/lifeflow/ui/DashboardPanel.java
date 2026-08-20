@@ -47,6 +47,7 @@ public final class DashboardPanel extends JPanel {
     private final JLabel unitsValue = metricValue("availableUnitsValue");
     private final JLabel pendingValue = metricValue("pendingRequestsValue");
     private final JLabel emergenciesValue = metricValue("emergencyRequestsValue");
+    private final JLabel appointmentsValue = metricValue("upcomingAppointmentsValue");
     private final JLabel expiringSoonValue = compactMetricValue("expiringSoonValue");
     private final DefaultTableModel inventoryModel = UiComponents.readOnlyModel(
             "Blood Type", "Available", "Expiring", "Status");
@@ -131,7 +132,7 @@ public final class DashboardPanel extends JPanel {
     }
 
     private JPanel buildMetrics() {
-        JPanel metrics = new JPanel(new GridLayout(1, 4, 12, 0));
+        JPanel metrics = new JPanel(new GridLayout(1, 5, 12, 0));
         metrics.setName("dashboardMetrics");
         metrics.setOpaque(false);
         metrics.setMaximumSize(new Dimension(Integer.MAX_VALUE, 86));
@@ -140,6 +141,8 @@ public final class DashboardPanel extends JPanel {
         metrics.add(availabilityMetricCard());
         metrics.add(metricCard("PENDING REQUESTS", pendingValue, UiTheme.WARNING));
         metrics.add(metricCard("EMERGENCY", emergenciesValue, UiTheme.DANGER));
+        metrics.add(metricCard("UPCOMING APPOINTMENTS", appointmentsValue,
+                UiTheme.NAVY));
         return metrics;
     }
 
@@ -338,6 +341,8 @@ public final class DashboardPanel extends JPanel {
         }
         pendingValue.setText(Integer.toString(pending));
         emergenciesValue.setText(Integer.toString(emergencies));
+        appointmentsValue.setText(Integer.toString(
+                controller.getUpcomingAppointmentCount()));
 
         HashMap<BloodType, Integer> stock = new HashMap<>();
         HashMap<BloodType, Integer> expiringByType = new HashMap<>();

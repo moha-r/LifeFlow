@@ -349,7 +349,7 @@ public final class UiComponents {
             }
             setOpaque(false);
             String status = value == null ? "" : value.toString();
-            if (status.contains("CANCELLED")) {
+            if (status.contains("CANCELLED") || status.contains("MISSED")) {
                 chipBackground = new Color(0xEEF0F4);
                 chipForeground = UiTheme.MUTED;
             } else if (status.contains("NOT ELIGIBLE") || status.contains("EXPIRED")
@@ -358,9 +358,13 @@ public final class UiComponents {
                 chipBackground = UiTheme.DANGER_LIGHT;
                 chipForeground = UiTheme.DANGER;
             } else if (status.contains("AVAILABLE") || status.contains("FULFILLED")
-                    || status.equals("ELIGIBLE") || status.contains("READY")) {
+                    || status.contains("COMPLETED") || status.equals("ELIGIBLE")
+                    || status.contains("READY")) {
                 chipBackground = UiTheme.SUCCESS_LIGHT;
                 chipForeground = UiTheme.SUCCESS;
+            } else if (status.contains("RESERVED") || status.contains("BOOKED")) {
+                chipBackground = UiTheme.WARNING_LIGHT;
+                chipForeground = UiTheme.WARNING;
             } else {
                 chipBackground = UiTheme.WARNING_LIGHT;
                 chipForeground = UiTheme.WARNING;

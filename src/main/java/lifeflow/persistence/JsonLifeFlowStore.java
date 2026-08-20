@@ -28,10 +28,12 @@ import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import lifeflow.model.AppointmentStatus;
 import lifeflow.model.BloodRequest;
 import lifeflow.model.BloodType;
 import lifeflow.model.BloodUnit;
 import lifeflow.model.Donor;
+import lifeflow.model.DonationAppointment;
 import lifeflow.model.EmergencyRequest;
 import lifeflow.model.FulfilmentRecord;
 import lifeflow.model.LifeFlowState;
@@ -443,6 +445,8 @@ public final class JsonLifeFlowStore implements LifeFlowStore {
         copyUnitsToPayload(state, payload.bloodUnits);
         copyRequestsToPayload(state, payload.requests);
         copyFulfilmentsToPayload(state, payload.fulfilments);
+        payload.appointments = new ArrayList<>();
+        copyAppointmentsToPayload(state, payload.appointments);
         payload.logs = new ArrayList<>(state.getLogs());
         return payload;
     }
@@ -468,6 +472,7 @@ public final class JsonLifeFlowStore implements LifeFlowStore {
             data.id = request.getId();
             data.kind = request.getKind();
             data.requesterName = request.getRequesterName();
+            data.hospitalId = request.getHospitalId();
             data.bloodType = request.getBloodType().name();
             data.quantity = request.getQuantity();
             data.requestDate = date(request.getRequestDate());
@@ -487,6 +492,23 @@ public final class JsonLifeFlowStore implements LifeFlowStore {
         }
     }
 
+    private static void copyAppointmentsToPayload(
+            LifeFlowState state, List<AppointmentData> output) {
+        if (output == null) {
+            return;
+        }
+        for (DonationAppointment appointment : state.getAppointments()) {
+            AppointmentData data = new AppointmentData();
+            data.id = appointment.getId();
+            data.donorId = appointment.getDonorId();
+            data.hospitalId = appointment.getHospitalId();
+            data.appointmentDate = date(appointment.getAppointmentDate());
+            data.linkedRequestId = appointment.getLinkedRequestId();
+            data.status = appointment.getStatus().name();
+            output.add(data);
+        }
+    }
+
     private static LifeFlowState fromPayload(long revision, Payload payload) {
         ArrayList<Donor> donors = new ArrayList<>();
         for (DonorData data : safe(payload.donors)) {
@@ -495,7 +517,8 @@ public final class JsonLifeFlowStore implements LifeFlowStore {
                     parseDate(data.externalLastDonationDate)));
         }
         return stateFromParts(revision, donors, safe(payload.bloodUnits),
-                safe(payload.requests), safe(payload.fulfilments), safe(payload.logs), false);
+                safe(payload.requests), safe(payload.fulfilments),
+                safe(payload.appointments), safe(payload.logs), false);
     }
 
     private static LifeFlowState fromLegacy(long revision, LegacyPayload payload) {
@@ -517,13 +540,15 @@ public final class JsonLifeFlowStore implements LifeFlowStore {
                     BloodType.valueOf(data.bloodType), external));
         }
         return stateFromParts(revision, donors, unitData, safe(payload.requests),
-                safe(payload.fulfilments), new java.util.ArrayList<>(), true);
+                safe(payload.fulfilments), new java.util.ArrayList<>(),
+                new java.util.ArrayList<>(), true);
     }
 
     private static LifeFlowState stateFromParts(
             long revision, ArrayList<Donor> donors, List<UnitData> unitData,
-            List<RequestData> requestData, List<FulfilmentData> fulfilmentData, java.util.List<String> logData,
-            boolean normaliseLegacyExpiry) {
+            List<RequestData> requestData, List<FulfilmentData> fulfilmentData,
+            java.util.List<AppointmentData> appointmentData,
+            java.util.List<String> logData, boolean normaliseLegacyExpiry) {
         ArrayList<BloodUnit> units = new ArrayList<>();
         for (UnitData data : unitData) {
             LocalDate donation = LocalDate.parse(data.donationDate);
@@ -540,18 +565,16 @@ public final class JsonLifeFlowStore implements LifeFlowStore {
         ArrayList<BloodRequest> requests = new ArrayList<>();
         for (RequestData data : requestData) {
             BloodRequest request;
-            if ("EMERGENCY".equals(data.kind)) {
+if ("EMERGENCY".equals(data.kind)) {
                 request = new EmergencyRequest(data.id, data.requesterName,
                         BloodType.valueOf(data.bloodType), data.quantity,
                         LocalDate.parse(data.requestDate),
-                        RequestStatus.valueOf(data.status));
-            } else if ("REGULAR".equals(data.kind)) {
+                        RequestStatus.valueOf(data.status), data.hospitalId);
+            } else {
                 request = new RegularRequest(data.id, data.requesterName,
                         BloodType.valueOf(data.bloodType), data.quantity,
                         LocalDate.parse(data.requestDate),
-                        RequestStatus.valueOf(data.status));
-            } else {
-                throw new IllegalArgumentException("Unknown request kind: " + data.kind);
+                        RequestStatus.valueOf(data.status), data.hospitalId);
             }
             requests.add(request);
         }
@@ -560,7 +583,14 @@ public final class JsonLifeFlowStore implements LifeFlowStore {
             fulfilments.add(new FulfilmentRecord(data.requestId,
                     LocalDate.parse(data.processedDate), safe(data.unitIds)));
         }
-        return new LifeFlowState(revision, donors, units, requests, fulfilments, logData == null ? new ArrayList<>() : new ArrayList<>(logData));
+        ArrayList<DonationAppointment> appointments = new ArrayList<>();
+        for (AppointmentData data : appointmentData) {
+            appointments.add(new DonationAppointment(data.id, data.donorId,
+                    data.hospitalId, LocalDate.parse(data.appointmentDate),
+                    data.linkedRequestId, AppointmentStatus.valueOf(data.status)));
+        }
+        return new LifeFlowState(revision, donors, units, requests, fulfilments,
+                appointments, logData == null ? new ArrayList<>() : new ArrayList<>(logData));
     }
 
     private static String date(LocalDate value) {
@@ -594,6 +624,8 @@ public final class JsonLifeFlowStore implements LifeFlowStore {
         public List<UnitData> bloodUnits = new ArrayList<>();
         public List<RequestData> requests = new ArrayList<>();
         public List<FulfilmentData> fulfilments = new ArrayList<>();
+        @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_EMPTY)
+        public List<AppointmentData> appointments = null;
         @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_EMPTY)
         public List<String> logs = null;
     }
@@ -652,6 +684,7 @@ public final class JsonLifeFlowStore implements LifeFlowStore {
         public String id;
         public String kind;
         public String requesterName;
+        public String hospitalId;
         public String bloodType;
         public int quantity;
         public String requestDate;
@@ -662,5 +695,14 @@ public final class JsonLifeFlowStore implements LifeFlowStore {
         public String requestId;
         public String processedDate;
         public List<String> unitIds = new ArrayList<>();
+    }
+
+    public static final class AppointmentData {
+        public String id;
+        public String donorId;
+        public String hospitalId;
+        public String appointmentDate;
+        public String linkedRequestId;
+        public String status;
     }
 }

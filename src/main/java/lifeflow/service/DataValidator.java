@@ -9,9 +9,11 @@ import java.util.HashSet;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import lifeflow.model.AppointmentStatus;
 import lifeflow.model.BloodRequest;
 import lifeflow.model.BloodUnit;
 import lifeflow.model.Donor;
+import lifeflow.model.DonationAppointment;
 import lifeflow.model.FulfilmentRecord;
 import lifeflow.model.LifeFlowState;
 import lifeflow.model.RequestStatus;
@@ -38,6 +40,7 @@ public final class DataValidator {
         ArrayList<BloodUnit> units = state.getUnits();
         ArrayList<BloodRequest> requests = state.getRequests();
         ArrayList<FulfilmentRecord> fulfilments = state.getFulfilments();
+        ArrayList<DonationAppointment> appointments = state.getAppointments();
 
         Map<String, Donor> donorsById = validateDonors(donors, today);
         Map<String, ArrayList<LocalDate>> donationsByDonor = new HashMap<>();
@@ -47,6 +50,7 @@ public final class DataValidator {
         Map<String, BloodRequest> requestsById = validateRequests(requests, today);
         validateFulfilments(requests, fulfilments, requestsById, units, unitsById,
                 today);
+        validateAppointments(appointments, donorsById, requestsById, today);
     }
 
     private static Map<String, Donor> validateDonors(ArrayList<Donor> donors,
@@ -142,6 +146,9 @@ public final class DataValidator {
         for (BloodRequest request : requests) {
             validateText(request.getId(), "Request ID");
             validateText(request.getRequesterName(), "Requester");
+            if (request.getHospitalId() != null) {
+                validateText(request.getHospitalId(), "Hospital ID");
+            }
             if (requestsById.put(key(request.getId()), request) != null) {
                 throw new DuplicateIdException("Request", request.getId());
             }
@@ -162,54 +169,133 @@ public final class DataValidator {
             ArrayList<BloodUnit> units,
             Map<String, BloodUnit> unitsById,
             LocalDate today) {
-        Set<String> fulfilledRequestIds = new HashSet<>();
-        Set<String> auditedUnitIds = new HashSet<>();
+        Set<String> recordRequestIds = new HashSet<>();
+        Map<String, String> unitToRequestStatus = new HashMap<>();
         for (FulfilmentRecord record : fulfilments) {
             validateText(record.requestId(), "Fulfilment request ID");
             BloodRequest request = requestsById.get(key(record.requestId()));
-            if (request == null || request.getStatus() != RequestStatus.FULFILLED) {
+            if (request == null || request.getStatus() == RequestStatus.CANCELLED) {
                 throw new ValidationException(
-                        "Fulfilment references a missing or pending request: "
+                        "Fulfilment references a missing or cancelled request: "
                                 + record.requestId(), "fulfilment");
             }
-            if (!fulfilledRequestIds.add(key(record.requestId()))) {
+            if (!recordRequestIds.add(key(record.requestId()))) {
                 throw new ValidationException(
                         "Request has more than one fulfilment: " + record.requestId(), "fulfilment");
             }
+            boolean partial = request.getStatus() == RequestStatus.PENDING;
             if (record.processedDate() == null || record.processedDate().isAfter(today)
                     || record.processedDate().isBefore(request.getRequestDate())
-                    || record.unitIds().size() != request.getQuantity()) {
+                    || (partial && record.unitIds().size() >= request.getQuantity())
+                    || (!partial && record.unitIds().size() != request.getQuantity())) {
                 throw new ValidationException(
                         "Invalid fulfilment details: " + record.requestId(), "fulfilment");
             }
             for (String unitId : record.unitIds()) {
                 BloodUnit unit = unitsById.get(key(unitId));
-                if (unit == null || unit.getStatus() != UnitStatus.USED
+                UnitStatus expected = partial ? UnitStatus.RESERVED : UnitStatus.USED;
+                if (unit == null || unit.getStatus() != expected
                         || !request.getBloodType().canReceiveFrom(unit.getBloodType())
                         || record.processedDate().isBefore(unit.getDonationDate())
                         || record.processedDate().isAfter(unit.getExpiryDate())) {
                     throw new ValidationException(
                             "Fulfilment contains an invalid unit: " + unitId, "fulfilment");
                 }
-                if (!auditedUnitIds.add(key(unitId))) {
+                String previous = unitToRequestStatus.put(key(unitId),
+                        request.getStatus().name());
+                if (previous != null) {
                     throw new ValidationException(
                             "Unit is used by more than one request: " + unitId, "fulfilment");
                 }
             }
         }
         for (BloodRequest request : requests) {
-            boolean audited = fulfilledRequestIds.contains(key(request.getId()));
-            if ((request.getStatus() == RequestStatus.FULFILLED) != audited) {
+            boolean hasRecord = recordRequestIds.contains(key(request.getId()));
+            if (request.getStatus() == RequestStatus.FULFILLED && !hasRecord) {
+                throw new ValidationException(
+                        "Request status and fulfilment history disagree: "
+                                + request.getId(), "state");
+            }
+            if (request.getStatus() == RequestStatus.CANCELLED && hasRecord) {
                 throw new ValidationException(
                         "Request status and fulfilment history disagree: "
                                 + request.getId(), "state");
             }
         }
         for (BloodUnit unit : units) {
-            boolean audited = auditedUnitIds.contains(key(unit.getId()));
-            if ((unit.getStatus() == UnitStatus.USED) != audited) {
+            String recordStatus = unitToRequestStatus.get(key(unit.getId()));
+            if (unit.getStatus() == UnitStatus.USED) {
+                if (!"FULFILLED".equals(recordStatus)) {
+                    throw new ValidationException(
+                            "Unit status and fulfilment history disagree: " + unit.getId(), "state");
+                }
+            } else if (unit.getStatus() == UnitStatus.RESERVED) {
+                if (!"PENDING".equals(recordStatus)) {
+                    throw new ValidationException(
+                            "Reserved unit is not committed to a pending request: "
+                                    + unit.getId(), "state");
+                }
+            } else if (recordStatus != null) {
                 throw new ValidationException(
                         "Unit status and fulfilment history disagree: " + unit.getId(), "state");
+            }
+        }
+    }
+
+    private static void validateAppointments(
+            ArrayList<DonationAppointment> appointments,
+            Map<String, Donor> donorsById,
+            Map<String, BloodRequest> requestsById, LocalDate today) {
+        Map<String, DonationAppointment> appointmentsById = new HashMap<>();
+        Map<String, Integer> activeBookingsPerDonor = new HashMap<>();
+        for (DonationAppointment appointment : appointments) {
+            validateText(appointment.getId(), "Appointment ID");
+            validateText(appointment.getDonorId(), "Appointment donor ID");
+            validateText(appointment.getHospitalId(), "Appointment hospital ID");
+            if (appointmentsById.put(key(appointment.getId()), appointment) != null) {
+                throw new DuplicateIdException("Appointment", appointment.getId());
+            }
+            if (donorsById.get(key(appointment.getDonorId())) == null) {
+                throw new EntityNotFoundException("Donor",
+                        appointment.getDonorId());
+            }
+            if (appointment.getAppointmentDate() == null
+                    || appointment.getStatus() == null) {
+                throw new ValidationException(
+                        "Incomplete appointment: " + appointment.getId(),
+                        "appointment");
+            }
+            if (appointment.getLinkedRequestId() != null
+                    && !appointment.getLinkedRequestId().isBlank()
+                    && requestsById.get(key(appointment.getLinkedRequestId())) == null) {
+                throw new ValidationException(
+                        "Appointment references a missing request: "
+                                + appointment.getId(), "appointment");
+            }
+            if (appointment.isBooked()
+                    && appointment.getLinkedRequestId() != null
+                    && !appointment.getLinkedRequestId().isBlank()) {
+                BloodRequest linked = requestsById.get(
+                        key(appointment.getLinkedRequestId()));
+                if (linked == null
+                        || linked.getStatus() != RequestStatus.PENDING) {
+                    throw new ValidationException(
+                            "A booked appointment can only be linked to a "
+                                    + "pending request: " + appointment.getId(),
+                            "appointment");
+                }
+            }
+            if (appointment.isBooked()
+                    && !appointment.getAppointmentDate().isBefore(today)) {
+                activeBookingsPerDonor.merge(key(appointment.getDonorId()), 1,
+                        Integer::sum);
+            }
+        }
+        for (Map.Entry<String, Integer> entry : activeBookingsPerDonor.entrySet()) {
+            if (entry.getValue() > 1) {
+                throw new ValidationException(
+                        "Donor has more than one active appointment: "
+                                + entry.getKey(), "appointment");
             }
         }
     }

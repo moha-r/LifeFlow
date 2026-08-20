@@ -29,6 +29,8 @@ public final class LifeFlowFrame extends JFrame {
     private static final String REQUESTS = "Blood Requests";
     private static final String MATCHING = "Matching";
     private static final String REPORTS = "Reports";
+    private static final String APPOINTMENTS = "Appointments";
+    private static final String CENTERS = "Donation Centers";
 
     private final LifeFlowController controller;
     private final HospitalRegistry registry;
@@ -48,6 +50,8 @@ public final class LifeFlowFrame extends JFrame {
     private InventoryPanel inventoryPanel;
     private RequestsPanel requestsPanel;
     private MatchingPanel matchingPanel;
+    private AppointmentsPanel appointmentsPanel;
+    private HospitalsPanel centersPanel;
 
     public LifeFlowFrame(LifeFlowState state, LifeFlowStore store,
                          HospitalRegistry registry, SessionSwitcher switcher) {
@@ -80,6 +84,10 @@ public final class LifeFlowFrame extends JFrame {
         requestsPanel = new RequestsPanel(controller, this::refreshAllPages, this::showStatus);
         matchingPanel = new MatchingPanel(controller, this::refreshAllPages, this::showStatus);
         reportsPanel = new ReportsPanel(controller);
+        appointmentsPanel = new AppointmentsPanel(controller, registry,
+                this::refreshAllPages, this::showStatus);
+        centersPanel = new HospitalsPanel(registry, controller,
+                this::refreshAllPages, this::showStatus);
         dashboardPanel = new DashboardPanel(controller,
                 donorsPanel::showAddDialog,
                 inventoryPanel::showAddDialog,
@@ -93,6 +101,8 @@ public final class LifeFlowFrame extends JFrame {
         pages.add(new BoundedContentPanel(requestsPanel), REQUESTS);
         pages.add(new BoundedContentPanel(matchingPanel), MATCHING);
         pages.add(new BoundedContentPanel(reportsPanel), REPORTS);
+        pages.add(new BoundedContentPanel(appointmentsPanel), APPOINTMENTS);
+        pages.add(new BoundedContentPanel(centersPanel), CENTERS);
 
         JPanel main = new JPanel(new BorderLayout());
         main.setBackground(UiTheme.BACKGROUND);
@@ -110,20 +120,8 @@ public final class LifeFlowFrame extends JFrame {
     }
 
     private void signOut() {
-        setVisible(false);
-        LoginResult result = LoginDialog.showAndAuthenticate(registry);
-        if (result == null) {
-            closeApplication();
-            return;
-        }
-        if (result.admin()) {
-            setVisible(true);
-            refreshAllPages();
-            showPage(DASHBOARD);
-            return;
-        }
         releaseAndDispose();
-        switcher.openHospitalPortal(result.hospital());
+        switcher.showLogin();
     }
 
     private void closeApplication() {
@@ -232,6 +230,8 @@ public final class LifeFlowFrame extends JFrame {
         requestsPanel.refreshData();
         matchingPanel.refreshData();
         reportsPanel.refreshData();
+        appointmentsPanel.refreshData();
+        centersPanel.refreshData();
         refreshStorageStatus();
     }
 

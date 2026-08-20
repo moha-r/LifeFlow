@@ -1,7 +1,7 @@
 package lifeflow.ui;
 
-import java.awt.BorderLayout;
 import java.awt.BasicStroke;
+import java.awt.BorderLayout;
 import java.awt.CardLayout;
 import java.awt.Color;
 import java.awt.Cursor;
@@ -11,6 +11,7 @@ import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
+import java.awt.GridLayout;
 import java.awt.Insets;
 import java.awt.RenderingHints;
 import java.awt.geom.Path2D;
@@ -20,21 +21,41 @@ import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.JButton;
+import javax.swing.JComboBox;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JPasswordField;
 import javax.swing.JTextField;
 import javax.swing.SwingConstants;
+import lifeflow.model.BloodType;
+import lifeflow.model.DonorAccount;
 import lifeflow.model.Hospital;
-import lifeflow.service.AdminAuth;
-import lifeflow.service.HospitalRegistry;
 import lifeflow.model.exception.LifeFlowException;
+import lifeflow.service.AdminAuth;
+import lifeflow.service.DonorRegistry;
+import lifeflow.service.DonorSignupService;
+import lifeflow.service.HospitalRegistry;
 
-/** Sign-in screen for administrators and self-registered hospitals. */
+/** Sign-in screen for administrators, hospitals, and self-registered donors. */
 @SuppressWarnings("serial")
 public final class LoginPanel extends JPanel {
     public static final Color BRAND = new Color(0x172033);
     private static final Color BRAND_ACCENT = new Color(0x24314A);
+
+    /** The three account roles offered on the sign-in screen. */
+    public enum Role {
+        ADMIN("Admin"), HOSPITAL("Hospital"), DONOR("Donor");
+
+        private final String label;
+
+        Role(String label) {
+            this.label = label;
+        }
+
+        public String label() {
+            return label;
+        }
+    }
 
     private final JTextField usernameField = new RoundedField();
     private final JPasswordField passwordField = new RoundedSecretField();
@@ -48,24 +69,31 @@ public final class LoginPanel extends JPanel {
             "Default credentials — admin / admin123");
     private final JButton adminTab = new JButton("Admin");
     private final JButton hospitalTab = new JButton("Hospital");
+    private final JButton donorTab = new JButton("Donor");
     private final JButton createAccountLink = new JButton("Create an account");
     private final JLabel accessLabel = new JLabel("ADMINISTRATOR ACCESS");
     private final CardLayout cards = new CardLayout();
     private final JPanel cardHost = new JPanel(cards);
     private final HospitalRegistry registry;
+    private final DonorRegistry donorRegistry;
+    private final DonorSignupService signupService;
     private final Consumer<LoginResult> onSuccess;
     private Consumer<String> roleChangeListener = ignored -> { };
-    private boolean adminRole = true;
+    private Role role = Role.ADMIN;
 
-    public LoginPanel(HospitalRegistry registry, Consumer<LoginResult> onSuccess) {
+    public LoginPanel(HospitalRegistry registry, DonorRegistry donorRegistry,
+                      DonorSignupService signupService,
+                      Consumer<LoginResult> onSuccess) {
         super(new BorderLayout());
         this.registry = registry;
+        this.donorRegistry = donorRegistry;
+        this.signupService = signupService;
         this.onSuccess = onSuccess;
         setOpaque(false);
-        setPreferredSize(new Dimension(840, 530));
+        setPreferredSize(new Dimension(840, 560));
 
         BrandPanel brand = new BrandPanel(accessLabel);
-        brand.setPreferredSize(new Dimension(280, 530));
+        brand.setPreferredSize(new Dimension(280, 560));
         add(brand, BorderLayout.WEST);
         add(buildShell(), BorderLayout.CENTER);
     }
@@ -93,6 +121,7 @@ public final class LoginPanel extends JPanel {
         cardHost.setOpaque(false);
         cardHost.add(buildLoginCard(), "login");
         cardHost.add(buildRegisterCard(), "register");
+        cardHost.add(buildDonorRegisterCard(), "registerDonor");
 
         /* Lock the card host size so switching cards never triggers a resize. */
         Dimension locked = cardHost.getPreferredSize();
@@ -136,10 +165,10 @@ public final class LoginPanel extends JPanel {
         gbc.insets = new Insets(0, 0, 20, 0);
         form.add(subtitle, gbc);
 
-        JPanel tabs = new JPanel(new java.awt.GridLayout(1, 2));
+        JPanel tabs = new JPanel(new GridLayout(1, 3));
         tabs.setOpaque(false);
         tabs.setBorder(BorderFactory.createLineBorder(UiTheme.BORDER, 1, true));
-        tabs.setPreferredSize(new Dimension(300, 42));
+        tabs.setPreferredSize(new Dimension(300, 44));
         adminTab.setName("adminRoleTab");
         adminTab.setFont(UiTheme.BODY_BOLD);
         adminTab.setForeground(Color.WHITE);
@@ -148,7 +177,7 @@ public final class LoginPanel extends JPanel {
         adminTab.setContentAreaFilled(true);
         adminTab.setBorder(BorderFactory.createEmptyBorder(9, 0, 9, 0));
         adminTab.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        adminTab.addActionListener(event -> setRole(true));
+        adminTab.addActionListener(event -> setRole(Role.ADMIN));
         hospitalTab.setName("hospitalRoleTab");
         hospitalTab.setFont(UiTheme.BODY_BOLD);
         hospitalTab.setForeground(UiTheme.NAVY);
@@ -157,9 +186,19 @@ public final class LoginPanel extends JPanel {
         hospitalTab.setContentAreaFilled(true);
         hospitalTab.setBorder(BorderFactory.createEmptyBorder(9, 0, 9, 0));
         hospitalTab.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        hospitalTab.addActionListener(event -> setRole(false));
+        hospitalTab.addActionListener(event -> setRole(Role.HOSPITAL));
+        donorTab.setName("donorRoleTab");
+        donorTab.setFont(UiTheme.BODY_BOLD);
+        donorTab.setForeground(UiTheme.NAVY);
+        donorTab.setBackground(Color.WHITE);
+        donorTab.setFocusPainted(false);
+        donorTab.setContentAreaFilled(true);
+        donorTab.setBorder(BorderFactory.createEmptyBorder(9, 0, 9, 0));
+        donorTab.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        donorTab.addActionListener(event -> setRole(Role.DONOR));
         tabs.add(adminTab);
         tabs.add(hospitalTab);
+        tabs.add(donorTab);
         gbc.gridy++;
         gbc.insets = new Insets(0, 0, 16, 0);
         form.add(tabs, gbc);
@@ -226,7 +265,8 @@ public final class LoginPanel extends JPanel {
         createAccountLink.setFocusPainted(false);
         createAccountLink.setBorder(BorderFactory.createEmptyBorder(0, 0, 0, 0));
         createAccountLink.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        createAccountLink.addActionListener(event -> cards.show(cardHost, "register"));
+        createAccountLink.addActionListener(event -> cards.show(cardHost,
+                role == Role.HOSPITAL ? "register" : "registerDonor"));
         JPanel linkRow = new JPanel(new FlowLayoutLeft());
         linkRow.setOpaque(false);
         linkRow.add(createAccountLink);
@@ -270,7 +310,7 @@ public final class LoginPanel extends JPanel {
 
         JTextField registerName = new RoundedField();
         registerName.setName("registerName");
-        registerName.setPreferredSize(new Dimension(300, 38));
+        registerName.setPreferredSize(new Dimension(300, 40));
         gbc.gridy++;
         gbc.insets = new Insets(0, 0, 3, 0);
         form.add(fieldLabel("HOSPITAL NAME"), gbc);
@@ -280,7 +320,7 @@ public final class LoginPanel extends JPanel {
 
         JTextField registerUsername = new RoundedField();
         registerUsername.setName("registerUsername");
-        registerUsername.setPreferredSize(new Dimension(300, 38));
+        registerUsername.setPreferredSize(new Dimension(300, 40));
         registerUsername.addActionListener(event -> submitRegistration());
         gbc.gridy++;
         gbc.insets = new Insets(0, 0, 3, 0);
@@ -291,7 +331,7 @@ public final class LoginPanel extends JPanel {
 
         JPasswordField registerPassword = new RoundedSecretField();
         registerPassword.setName("registerPassword");
-        registerPassword.setPreferredSize(new Dimension(300, 38));
+        registerPassword.setPreferredSize(new Dimension(300, 40));
         registerPassword.addActionListener(event -> submitRegistration());
         gbc.gridy++;
         gbc.insets = new Insets(0, 0, 3, 0);
@@ -302,7 +342,7 @@ public final class LoginPanel extends JPanel {
 
         JPasswordField registerConfirm = new RoundedSecretField();
         registerConfirm.setName("registerConfirm");
-        registerConfirm.setPreferredSize(new Dimension(300, 38));
+        registerConfirm.setPreferredSize(new Dimension(300, 40));
         registerConfirm.addActionListener(event -> submitRegistration());
         gbc.gridy++;
         gbc.insets = new Insets(0, 0, 3, 0);
@@ -345,6 +385,136 @@ public final class LoginPanel extends JPanel {
         return form;
     }
 
+    private JPanel buildDonorRegisterCard() {
+        JPanel form = new JPanel(new GridBagLayout());
+        form.setOpaque(false);
+        form.setBorder(BorderFactory.createEmptyBorder(16, 48, 12, 48));
+
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.gridx = 0;
+        gbc.gridy = 0;
+        gbc.weightx = 1;
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+
+        JLabel registerHeading = new JLabel("Donor Registration");
+        registerHeading.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 28));
+        registerHeading.setForeground(UiTheme.NAVY);
+        gbc.insets = new Insets(0, 0, 4, 0);
+        form.add(registerHeading, gbc);
+
+        JLabel registerSubtitle = new JLabel(
+                "Create an account to track your donation status.");
+        registerSubtitle.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 13));
+        registerSubtitle.setForeground(UiTheme.MUTED);
+        gbc.gridy++;
+        gbc.insets = new Insets(0, 0, 14, 0);
+        form.add(registerSubtitle, gbc);
+
+        JTextField donorName = new RoundedField();
+        donorName.setName("donorName");
+        donorName.setPreferredSize(new Dimension(300, 40));
+        gbc.gridy++;
+        gbc.insets = new Insets(0, 0, 3, 0);
+        form.add(fieldLabel("FULL NAME"), gbc);
+        gbc.gridy++;
+        gbc.insets = new Insets(0, 0, 10, 0);
+        form.add(donorName, gbc);
+
+        JTextField donorAge = new RoundedField();
+        donorAge.setName("donorAge");
+        donorAge.setPreferredSize(new Dimension(138, 40));
+        JTextField donorWeight = new RoundedField();
+        donorWeight.setName("donorWeight");
+        donorWeight.setPreferredSize(new Dimension(138, 40));
+        JPanel measureRow = new JPanel(new GridLayout(1, 2, 10, 0));
+        measureRow.setOpaque(false);
+        measureRow.add(donorAge);
+        measureRow.add(donorWeight);
+        gbc.gridy++;
+        gbc.insets = new Insets(0, 0, 3, 0);
+        form.add(fieldLabel("AGE / WEIGHT (KG)"), gbc);
+        gbc.gridy++;
+        gbc.insets = new Insets(0, 0, 10, 0);
+        form.add(measureRow, gbc);
+
+        JComboBox<BloodType> donorType = new JComboBox<>(BloodType.values());
+        donorType.setName("donorBloodType");
+        UiComponents.styleInput(donorType);
+        donorType.setPreferredSize(new Dimension(300, 40));
+        gbc.gridy++;
+        gbc.insets = new Insets(0, 0, 3, 0);
+        form.add(fieldLabel("BLOOD TYPE"), gbc);
+        gbc.gridy++;
+        gbc.insets = new Insets(0, 0, 10, 0);
+        form.add(donorType, gbc);
+
+        JTextField donorUsername = new RoundedField();
+        donorUsername.setName("donorUsername");
+        donorUsername.setPreferredSize(new Dimension(300, 40));
+        donorUsername.addActionListener(event -> submitDonorRegistration());
+        gbc.gridy++;
+        gbc.insets = new Insets(0, 0, 3, 0);
+        form.add(fieldLabel("USERNAME"), gbc);
+        gbc.gridy++;
+        gbc.insets = new Insets(0, 0, 10, 0);
+        form.add(donorUsername, gbc);
+
+        JPasswordField donorPassword = new RoundedSecretField();
+        donorPassword.setName("donorPassword");
+        donorPassword.setPreferredSize(new Dimension(300, 40));
+        donorPassword.addActionListener(event -> submitDonorRegistration());
+        gbc.gridy++;
+        gbc.insets = new Insets(0, 0, 3, 0);
+        form.add(fieldLabel("PASSWORD (MIN 4 CHARACTERS)"), gbc);
+        gbc.gridy++;
+        gbc.insets = new Insets(0, 0, 10, 0);
+        form.add(donorPassword, gbc);
+
+        JPasswordField donorConfirm = new RoundedSecretField();
+        donorConfirm.setName("donorConfirm");
+        donorConfirm.setPreferredSize(new Dimension(300, 40));
+        donorConfirm.addActionListener(event -> submitDonorRegistration());
+        gbc.gridy++;
+        gbc.insets = new Insets(0, 0, 3, 0);
+        form.add(fieldLabel("CONFIRM PASSWORD"), gbc);
+        gbc.gridy++;
+        gbc.insets = new Insets(0, 0, 6, 0);
+        form.add(donorConfirm, gbc);
+
+        JLabel donorError = new JLabel(" ");
+        donorError.setName("donorError");
+        donorError.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 12));
+        donorError.setForeground(UiTheme.DANGER);
+        donorError.setPreferredSize(new Dimension(300, 16));
+        gbc.gridy++;
+        gbc.insets = new Insets(0, 0, 6, 0);
+        form.add(donorError, gbc);
+
+        JButton donorRegisterButton = UiComponents.primaryButton("Create account");
+        donorRegisterButton.setName("donorRegisterButton");
+        donorRegisterButton.putClientProperty("hero", true);
+        donorRegisterButton.setMaximumSize(new Dimension(Integer.MAX_VALUE, 42));
+        donorRegisterButton.setPreferredSize(new Dimension(300, 42));
+        donorRegisterButton.addActionListener(event -> submitDonorRegistration());
+        gbc.gridy++;
+        gbc.insets = new Insets(0, 0, 8, 0);
+        form.add(donorRegisterButton, gbc);
+
+        JButton donorBackButton = UiComponents.secondaryButton("Back to sign in");
+        donorBackButton.setName("donorBackButton");
+        donorBackButton.setMaximumSize(new Dimension(Integer.MAX_VALUE, 40));
+        donorBackButton.setPreferredSize(new Dimension(300, 40));
+        donorBackButton.addActionListener(event -> cards.show(cardHost, "login"));
+        gbc.gridy++;
+        gbc.insets = new Insets(0, 0, 0, 0);
+        form.add(donorBackButton, gbc);
+
+        Runnable clear = () -> donorError.setText(" ");
+        donorName.getDocument().addDocumentListener(new DocumentChangeAdapter(clear));
+        donorUsername.getDocument().addDocumentListener(new DocumentChangeAdapter(clear));
+        return form;
+    }
+
     private void submitRegistration() {
         JTextField name = findField("registerName");
         JTextField username = findField("registerUsername");
@@ -361,6 +531,39 @@ public final class LoginPanel extends JPanel {
                     username.getText(), new String(password.getPassword()));
             error.setText(" ");
             onSuccess.accept(LoginResult.hospitalSession(hospital));
+        } catch (LifeFlowException | IOException exception) {
+            error.setText(exception.getMessage());
+        }
+    }
+
+    private void submitDonorRegistration() {
+        JTextField name = findField("donorName");
+        JTextField age = findField("donorAge");
+        JTextField weight = findField("donorWeight");
+        JComboBox<?> type = (JComboBox<?>) findComponent("donorBloodType");
+        JTextField username = findField("donorUsername");
+        JPasswordField password = findFieldPassword("donorPassword");
+        JPasswordField confirm = findFieldPassword("donorConfirm");
+        JLabel error = findLabel("donorError");
+        try {
+            if (!new String(password.getPassword())
+                    .equals(new String(confirm.getPassword()))) {
+                error.setText("Passwords do not match.");
+                return;
+            }
+            int donorAge = Integer.parseInt(age.getText().trim());
+            double donorWeight = Double.parseDouble(weight.getText().trim());
+            if (name.getText().trim().isEmpty()) {
+                error.setText("Full name is required.");
+                return;
+            }
+            DonorAccount account = signupService.signup(name.getText(),
+                    donorAge, donorWeight, (BloodType) type.getSelectedItem(),
+                    username.getText(), new String(password.getPassword()));
+            error.setText(" ");
+            onSuccess.accept(LoginResult.donorSession(account));
+        } catch (NumberFormatException exception) {
+            error.setText("Age and weight must be valid numbers.");
         } catch (LifeFlowException | IOException exception) {
             error.setText(exception.getMessage());
         }
@@ -398,25 +601,48 @@ public final class LoginPanel extends JPanel {
         return null;
     }
 
-    /** Switches between the admin and hospital role views. */
+    /** Legacy switch between the admin and hospital role views. */
     public void setRole(boolean admin) {
-        adminRole = admin;
-        adminTab.setBackground(admin ? UiTheme.NAVY : Color.WHITE);
-        adminTab.setForeground(admin ? Color.WHITE : UiTheme.NAVY);
-        hospitalTab.setBackground(admin ? Color.WHITE : UiTheme.NAVY);
-        hospitalTab.setForeground(admin ? UiTheme.NAVY : Color.WHITE);
-        heading.setText(admin ? "Admin Sign In" : "Hospital Sign In");
-        subtitle.setText(admin
+        setRole(admin ? Role.ADMIN : Role.HOSPITAL);
+    }
+
+    /** Switches the sign-in screen to the given role view. */
+    public void setRole(Role selected) {
+        role = selected;
+        adminTab.setBackground(selected == Role.ADMIN ? UiTheme.NAVY : Color.WHITE);
+        adminTab.setForeground(selected == Role.ADMIN ? Color.WHITE : UiTheme.NAVY);
+        hospitalTab.setBackground(selected == Role.HOSPITAL ? UiTheme.NAVY : Color.WHITE);
+        hospitalTab.setForeground(selected == Role.HOSPITAL ? Color.WHITE : UiTheme.NAVY);
+        donorTab.setBackground(selected == Role.DONOR ? UiTheme.NAVY : Color.WHITE);
+        donorTab.setForeground(selected == Role.DONOR ? Color.WHITE : UiTheme.NAVY);
+        heading.setText(selected == Role.ADMIN ? "Admin Sign In"
+                : selected == Role.HOSPITAL ? "Hospital Sign In" : "Donor Sign In");
+        subtitle.setText(selected == Role.ADMIN
                 ? "Welcome back — enter your credentials to continue."
-                : "Sign in with your hospital account to place requests.");
-        hint.setText(admin ? "Default credentials — admin / admin123"
-                : "New here? Create your hospital account below.");
-        accessLabel.setText(admin ? "ADMINISTRATOR ACCESS" : "HOSPITAL PORTAL");
-        createAccountLink.setForeground(admin ? new Color(0, 0, 0, 0) : UiTheme.CORAL_DARK);
-        createAccountLink.setEnabled(!admin);
+                : selected == Role.HOSPITAL
+                ? "Sign in with your hospital account to place requests."
+                : "Sign in to view your donation status and history.");
+        hint.setText(selected == Role.ADMIN
+                ? "Default credentials — admin / admin123"
+                : selected == Role.HOSPITAL
+                ? "New here? Create your hospital account below."
+                : "New here? Create your donor account below.");
+        accessLabel.setText(selected == Role.ADMIN ? "ADMINISTRATOR ACCESS"
+                : selected == Role.HOSPITAL ? "HOSPITAL PORTAL" : "DONOR PORTAL");
+        createAccountLink.setForeground(selected == Role.ADMIN
+                ? new Color(0, 0, 0, 0) : UiTheme.CORAL_DARK);
+        createAccountLink.setEnabled(selected != Role.ADMIN);
         errorLabel.setText(" ");
         passwordField.setText("");
-        roleChangeListener.accept(admin ? "Admin" : "Hospital");
+        roleChangeListener.accept(selected.label());
+    }
+
+    public void setDonorRole() {
+        setRole(Role.DONOR);
+    }
+
+    public Role getRole() {
+        return role;
     }
 
     public void setRoleChangeListener(Consumer<String> listener) {
@@ -434,17 +660,27 @@ public final class LoginPanel extends JPanel {
     public void signIn() {
         String username = usernameField.getText().trim();
         String password = new String(passwordField.getPassword());
-        boolean ok = adminRole
-                ? AdminAuth.authenticate(username, password)
-                : registry.authenticate(username, password) != null;
+        boolean ok;
+        if (role == Role.ADMIN) {
+            ok = AdminAuth.authenticate(username, password);
+        } else if (role == Role.HOSPITAL) {
+            ok = registry.authenticate(username, password) != null;
+        } else {
+            ok = donorRegistry.authenticate(username, password) != null;
+        }
         if (ok) {
             errorLabel.setText(" ");
-            if (adminRole) {
-                onSuccess.accept(LoginResult.adminSession());
+            LoginResult outcome;
+            if (role == Role.ADMIN) {
+                outcome = LoginResult.adminSession();
+            } else if (role == Role.HOSPITAL) {
+                outcome = LoginResult.hospitalSession(
+                        registry.authenticate(username, password));
             } else {
-                onSuccess.accept(LoginResult.hospitalSession(
-                        registry.authenticate(username, password)));
+                outcome = LoginResult.donorSession(
+                        donorRegistry.authenticate(username, password));
             }
+            onSuccess.accept(outcome);
         } else {
             errorLabel.setText("Invalid username or password. Please try again.");
             passwordField.setText("");
@@ -469,7 +705,7 @@ public final class LoginPanel extends JPanel {
     }
 
     public boolean isAdminRole() {
-        return adminRole;
+        return role == Role.ADMIN;
     }
 
     private static final class FlowLayoutLeft extends java.awt.FlowLayout {

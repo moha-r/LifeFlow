@@ -136,6 +136,84 @@ final class RequestDeclineTest {
         assertEquals(RequestStatus.CANCELLED, controller.getRequests().get(1).getStatus());
     }
 
+    @Test
+    void cancelledRequestCannotBeEdited() throws Exception {
+        LifeFlowController controller = controller();
+        controller.addRequest("R000001", "Clinic", BloodType.A_POS, 2, false);
+        controller.declineRequest("R000001", "No longer needed");
+
+        assertThrows(ImmutableRecordException.class,
+                () -> controller.updatePendingRequest("R000001", "Clinic",
+                        BloodType.O_NEG, 9));
+        assertEquals(RequestStatus.CANCELLED,
+                controller.getRequests().get(0).getStatus());
+        assertEquals(2, controller.getRequests().get(0).getQuantity());
+        assertEquals(BloodType.A_POS,
+                controller.getRequests().get(0).getBloodType());
+    }
+
+    @Test
+    void cancelledRequestCannotBeProcessed() throws Exception {
+        LifeFlowController controller = controller();
+        controller.addDonor("D000001", "Aisha", 25, 55.0, BloodType.O_NEG, null);
+        controller.addBloodUnit("U000001", "D000001", TODAY);
+        controller.addRequest("R000001", "Clinic", BloodType.O_NEG, 1, false);
+        controller.declineRequest("R000001", "No longer needed");
+
+        assertThrows(ImmutableRecordException.class,
+                () -> controller.processSpecificRequest("R000001", TODAY,
+                        lifeflow.model.MatchMode.EXACT));
+        assertEquals(RequestStatus.CANCELLED,
+                controller.getRequests().get(0).getStatus());
+        assertTrue(controller.getFulfilments().isEmpty());
+    }
+
+    @Test
+    void partiallyCoveredRequestGuardsUnsafeEdits() throws Exception {
+        ArrayList<Donor> donors = new ArrayList<>(List.of(
+                new Donor("D000001", "Aisha", 25, 55.0, BloodType.O_POS, null)));
+        ArrayList<BloodUnit> units = new ArrayList<>(List.of(
+                new BloodUnit("U000001", "D000001", BloodType.O_POS,
+                        TODAY.minusDays(5), TODAY.plusDays(30),
+                        UnitStatus.RESERVED)));
+        ArrayList<BloodRequest> requests = new ArrayList<>(List.of(
+                new RegularRequest("R000001", "Clinic", BloodType.A_POS, 2,
+                        TODAY.minusDays(3), RequestStatus.PENDING)));
+        ArrayList<FulfilmentRecord> fulfilments = new ArrayList<>(List.of(
+                new FulfilmentRecord("R000001", TODAY, List.of("U000001"))));
+        LifeFlowController controller = controller(new LifeFlowState(1,
+                donors, units, requests, fulfilments, new ArrayList<>()));
+
+        assertThrows(ValidationException.class,
+                () -> controller.updatePendingRequest("R000001", "Clinic",
+                        BloodType.A_POS, 1));
+        assertThrows(ValidationException.class,
+                () -> controller.updatePendingRequest("R000001", "Clinic",
+                        BloodType.A_NEG, 3));
+
+        controller.updatePendingRequest("R000001", "Clinic", BloodType.B_POS, 3);
+
+        assertEquals(3, controller.getRequests().get(0).getQuantity());
+        assertEquals(BloodType.B_POS,
+                controller.getRequests().get(0).getBloodType());
+        assertEquals(RequestStatus.PENDING,
+                controller.getRequests().get(0).getStatus());
+    }
+
+    @Test
+    void discardedUnitCannotBeCorrected() throws Exception {
+        LifeFlowController controller = controller();
+        controller.addDonor("D000001", "Aisha", 25, 55.0, BloodType.A_POS, null);
+        controller.addBloodUnit("U000001", "D000001", TODAY.minusDays(10));
+        controller.discardBloodUnit("U000001");
+
+        assertThrows(ImmutableRecordException.class,
+                () -> controller.updateUnusedBloodUnitDonationDate(
+                        "U000001", TODAY.minusDays(9)));
+        assertEquals(UnitStatus.DISCARDED,
+                controller.getUnits().get(0).getStatus());
+    }
+
     private static LifeFlowController controller() throws Exception {
         return controller(new LifeFlowState());
     }

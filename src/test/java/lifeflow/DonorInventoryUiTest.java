@@ -40,6 +40,72 @@ final class DonorInventoryUiTest {
     }
 
     @Test
+    void appointmentsWorkspaceShowsEveryBookingAcrossCenters()
+            throws Exception {
+        LifeFlowController controller = controller("lifeflow-appointments-ui-");
+        controller.addDonor("D000001", "Aisha", 25, 55.0,
+                BloodType.O_POS, null);
+        controller.bookDonationAppointment("D000001", "H1",
+                controller.today().plusDays(2), null);
+        lifeflow.service.HospitalRegistry registry = registry();
+        lifeflow.ui.AppointmentsPanel[] panel =
+                new lifeflow.ui.AppointmentsPanel[1];
+        SwingUtilities.invokeAndWait(() -> panel[0] =
+                new lifeflow.ui.AppointmentsPanel(controller, registry,
+                        () -> { }, notice -> { }));
+
+        JTable table = firstTable(panel[0]);
+        assertNotNull(table);
+        assertEquals(6, table.getColumnCount());
+        assertEquals("Linked Request", table.getColumnName(5));
+        assertEquals(1, table.getModel().getRowCount());
+        assertEquals("BOOKED", table.getModel().getValueAt(0, 4));
+        assertNotNull(named(panel[0], "appointmentStatusFilter"));
+    }
+
+    @Test
+    void centersWorkspaceListsRegisteredHospitals() throws Exception {
+        LifeFlowController controller = controller("lifeflow-centers-ui-");
+        lifeflow.service.HospitalRegistry registry = registry();
+        registry.register("Riyadh Central Hospital", "riyadh.central",
+                "pass123");
+        lifeflow.ui.HospitalsPanel[] panel = new lifeflow.ui.HospitalsPanel[1];
+        SwingUtilities.invokeAndWait(() -> panel[0] =
+                new lifeflow.ui.HospitalsPanel(registry, controller,
+                        () -> { }, notice -> { }));
+
+        JTable table = firstTable(panel[0]);
+        assertNotNull(table);
+        assertEquals(4, table.getColumnCount());
+        assertEquals(1, table.getModel().getRowCount());
+        assertEquals("Riyadh Central Hospital",
+                table.getModel().getValueAt(0, 1));
+        assertNotNull(findButton(panel[0], "+ Add center"));
+        assertNotNull(findButton(panel[0], "Edit selected"));
+        assertNotNull(findButton(panel[0], "Remove"));
+    }
+
+    @Test
+    void requestWorkspaceShowsVolunteerCounts() throws Exception {
+        LifeFlowController controller = controller("lifeflow-requests-ui-");
+        controller.addDonor("D000001", "Aisha", 25, 55.0,
+                BloodType.O_POS, null);
+        controller.addRequest("R000001", "Clinic", BloodType.O_POS, 1, false);
+        controller.bookDonationAppointment("D000001", "H1",
+                controller.today().plusDays(2), "R000001");
+        lifeflow.ui.RequestsPanel[] panel = new lifeflow.ui.RequestsPanel[1];
+        SwingUtilities.invokeAndWait(() -> panel[0] =
+                new lifeflow.ui.RequestsPanel(controller, () -> { },
+                        notice -> { }));
+
+        JTable table = firstTable(panel[0]);
+        assertNotNull(table);
+        assertEquals(9, table.getColumnCount());
+        assertEquals("Volunteers", table.getColumnName(8));
+        assertEquals(1, table.getModel().getValueAt(0, 8));
+    }
+
+    @Test
     void inventoryWorkspaceShowsDaysLeftAndDateCorrectionAction() throws Exception {
         LifeFlowController controller = controller("lifeflow-inventory-ui-");
         InventoryPanel[] panel = new InventoryPanel[1];
@@ -135,6 +201,18 @@ final class DonorInventoryUiTest {
     private static LifeFlowController controller(String prefix) throws Exception {
         return new LifeFlowController(new LifeFlowState(),
                 new JsonLifeFlowStore(Files.createTempDirectory(prefix)));
+    }
+
+    private static lifeflow.service.HospitalRegistry registry()
+            throws Exception {
+        java.time.ZoneId zone = java.time.ZoneId.systemDefault();
+        java.time.Clock clock = java.time.Clock.fixed(
+                java.time.LocalDate.of(2026, 8, 20)
+                        .atStartOfDay(zone).toInstant(), zone);
+        return new lifeflow.service.HospitalRegistry(new java.util.ArrayList<>(),
+                new lifeflow.persistence.JsonHospitalStore(
+                        Files.createTempDirectory("lifeflow-centers-")),
+                clock);
     }
 
     private static Component named(Container root, String name) {
