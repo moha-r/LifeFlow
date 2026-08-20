@@ -46,7 +46,7 @@ public final class RequestsPanel extends JPanel implements lifeflow.service.Stat
     private final TableRowSorter<DefaultTableModel> sorter = new TableRowSorter<>(model);
     private final JTextField search = UiComponents.searchField("Search requests");
     private final JComboBox<String> statusFilter = new JComboBox<>(
-            new String[]{"All statuses", "PENDING", "FULFILLED"});
+            new String[]{"All statuses", "PENDING", "FULFILLED", "CANCELLED"});
     private final JLabel recordCount = UiComponents.muted("0 RECORDS");
     private final CardLayout centerLayout = new CardLayout();
     private final JPanel center = new JPanel(centerLayout);
@@ -145,8 +145,13 @@ public final class RequestsPanel extends JPanel implements lifeflow.service.Stat
         JButton edit = UiComponents.secondaryButton("Edit selected");
         edit.setPreferredSize(new java.awt.Dimension(132, 34));
         edit.addActionListener(event -> showEditDialog());
+        JButton decline = UiComponents.secondaryButton("Decline");
+        decline.setName("declineRequestButton");
+        decline.setPreferredSize(new java.awt.Dimension(92, 34));
+        decline.addActionListener(event -> showDeclineDialog());
         actions.add(recordCount);
         actions.add(edit);
+        actions.add(decline);
         toolbar.add(actions, BorderLayout.EAST);
         return toolbar;
     }
@@ -215,10 +220,94 @@ public final class RequestsPanel extends JPanel implements lifeflow.service.Stat
                             "Fulfilled requests cannot be edited."));
                     return;
                 }
+                if (request.getStatus() == RequestStatus.CANCELLED) {
+                    status.accept(UiNotice.warning(
+                            "Cancelled requests cannot be edited."));
+                    return;
+                }
                 showRequestDialog(request);
                 return;
             }
         }
+    }
+
+    private void showDeclineDialog() {
+        int viewRow = table.getSelectedRow();
+        if (viewRow < 0) {
+            status.accept(UiNotice.info("Select a pending request to decline."));
+            return;
+        }
+        String id = model.getValueAt(table.convertRowIndexToModel(viewRow), 0).toString();
+        BloodRequest selected = null;
+        for (BloodRequest request : controller.getRequests()) {
+            if (request.getId().equals(id)) {
+                selected = request;
+                break;
+            }
+        }
+        if (selected == null) {
+            return;
+        }
+        if (selected.getStatus() != RequestStatus.PENDING) {
+            status.accept(UiNotice.warning(
+                    "Only pending requests can be declined."));
+            return;
+        }
+        BloodRequest target = selected;
+        Window owner = SwingUtilities.getWindowAncestor(this);
+        JDialog dialog = new JDialog(owner, "Decline request " + target.getId(),
+                Dialog.ModalityType.APPLICATION_MODAL);
+        JTextField reason = new JTextField();
+        UiComponents.styleInput(reason);
+        JLabel error = new JLabel(" ");
+        error.setForeground(UiTheme.DANGER);
+        error.setFont(UiTheme.SMALL);
+        JButton cancel = UiComponents.secondaryButton("Cancel");
+        JButton confirm = UiComponents.primaryButton("Decline request");
+        cancel.addActionListener(event -> dialog.dispose());
+        confirm.addActionListener(event -> {
+            try {
+                controller.declineRequest(target.getId(), reason.getText());
+                dialog.dispose();
+                status.accept(UiNotice.warning(
+                        "Request " + target.getId() + " declined."));
+                onDataChanged.run();
+            } catch (LifeFlowException | IOException exception) {
+                error.setText(exception.getMessage());
+            }
+        });
+        JPanel content = new JPanel(new BorderLayout(0, 12));
+        content.setBackground(UiTheme.SURFACE);
+        content.setBorder(BorderFactory.createEmptyBorder(20, 24, 20, 24));
+        JPanel header = new JPanel();
+        header.setOpaque(false);
+        header.setLayout(new BoxLayout(header, BoxLayout.Y_AXIS));
+        header.add(UiComponents.heading("Decline pending request"));
+        header.add(Box.createVerticalStrut(5));
+        header.add(UiComponents.muted(target.getKind() + " · "
+                + DashboardPanel.displayType(target.getBloodType()) + " · "
+                + target.getQuantity() + " unit(s)"));
+        content.add(header, BorderLayout.NORTH);
+        JPanel form = new JPanel(new GridBagLayout());
+        form.setOpaque(false);
+        addFormRow(form, 0, "Reason", reason);
+        content.add(form, BorderLayout.CENTER);
+        JPanel buttons = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
+        buttons.setOpaque(false);
+        buttons.add(cancel);
+        buttons.add(confirm);
+        JPanel footer = new JPanel(new BorderLayout());
+        footer.setOpaque(false);
+        footer.add(error, BorderLayout.CENTER);
+        footer.add(buttons, BorderLayout.EAST);
+        content.add(footer, BorderLayout.SOUTH);
+        dialog.setContentPane(content);
+        UiComponents.configureDialogKeys(dialog, confirm, cancel);
+        dialog.setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
+        dialog.setSize(520, 240);
+        dialog.setResizable(false);
+        dialog.setLocationRelativeTo(owner);
+        dialog.setVisible(true);
     }
 
     private void showRequestDialog(BloodRequest request) {

@@ -5,10 +5,14 @@ import java.awt.Color;
 import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
+import java.awt.Font;
+import java.awt.Graphics;
+import java.awt.Graphics2D;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.GridLayout;
 import java.awt.Rectangle;
+import java.awt.RenderingHints;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
@@ -19,9 +23,10 @@ import javax.swing.JButton;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
-import javax.swing.Scrollable;
 import javax.swing.JTable;
+import javax.swing.Scrollable;
 import javax.swing.SwingConstants;
+import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.DefaultTableModel;
 import lifeflow.model.BloodRequest;
 import lifeflow.model.BloodType;
@@ -34,7 +39,7 @@ import lifeflow.service.BloodInventory;
 import lifeflow.service.LifeFlowController;
 import lifeflow.service.MatchingService;
 
-/** Dense operational overview for stock, demand, and the next safe action. */
+/** Organized operational overview: key metrics, stock health, and the next safe action. */
 @SuppressWarnings("serial")
 public final class DashboardPanel extends JPanel {
     private final LifeFlowController controller;
@@ -44,8 +49,14 @@ public final class DashboardPanel extends JPanel {
     private final JLabel emergenciesValue = metricValue("emergencyRequestsValue");
     private final JLabel expiringSoonValue = compactMetricValue("expiringSoonValue");
     private final DefaultTableModel inventoryModel = UiComponents.readOnlyModel(
-            "Blood Type", "Available", "Stock Level", "Status");
-    private final DefaultTableModel eligibleDonorsModel = new javax.swing.table.DefaultTableModel(new String[]{"Donor", "Type", "Eligible Since"}, 0) { @Override public boolean isCellEditable(int row, int col) { return false; } };
+            "Blood Type", "Available", "Expiring", "Status");
+    private final DefaultTableModel eligibleDonorsModel = new DefaultTableModel(
+            new String[]{"Donor", "Type", "Eligible Since"}, 0) {
+        @Override
+        public boolean isCellEditable(int row, int col) {
+            return false;
+        }
+    };
     private final DefaultTableModel requestModel = UiComponents.readOnlyModel(
             "ID", "Requester", "Blood Type", "Qty", "Status");
     private final JTable inventoryTable = new JTable(inventoryModel);
@@ -95,30 +106,20 @@ public final class DashboardPanel extends JPanel {
         JPanel content = new ViewportWidthPanel();
         content.setOpaque(false);
         content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
+
         JPanel metrics = buildMetrics();
         metrics.setAlignmentX(Component.LEFT_ALIGNMENT);
         content.add(metrics);
         content.add(Box.createVerticalStrut(UiTheme.SPACE_SM));
+
         JPanel operations = buildOperationsRow();
         operations.setAlignmentX(Component.LEFT_ALIGNMENT);
         content.add(operations);
         content.add(Box.createVerticalStrut(UiTheme.SPACE_SM));
+
         JPanel queue = buildRequestQueue();
-        queue.setAlignmentX(java.awt.Component.LEFT_ALIGNMENT);
+        queue.setAlignmentX(Component.LEFT_ALIGNMENT);
         content.add(queue);
-        content.add(javax.swing.Box.createVerticalStrut(lifeflow.ui.UiTheme.SPACE_SM));
-        
-        javax.swing.JPanel eligibleDonors = denseSection("Eligible Donors (Recall)", "Donors ready to donate again");
-        eligibleDonors.setAlignmentX(java.awt.Component.LEFT_ALIGNMENT);
-        eligibleDonors.setMaximumSize(new java.awt.Dimension(Integer.MAX_VALUE, 220));
-        eligibleDonors.setPreferredSize(new java.awt.Dimension(900, 220));
-        javax.swing.JTable eligibleTable = new javax.swing.JTable(eligibleDonorsModel);
-        lifeflow.ui.UiComponents.configureTable(eligibleTable);
-        eligibleTable.setRowHeight(27);
-        javax.swing.JScrollPane eligibleScroll = new javax.swing.JScrollPane(eligibleTable);
-        eligibleScroll.setBorder(null);
-        eligibleDonors.add(eligibleScroll, java.awt.BorderLayout.CENTER);
-        content.add(eligibleDonors);
 
         JScrollPane scroll = new JScrollPane(content);
         scroll.setName("dashboardScroll");
@@ -130,11 +131,11 @@ public final class DashboardPanel extends JPanel {
     }
 
     private JPanel buildMetrics() {
-        JPanel metrics = new JPanel(new GridLayout(1, 4, 10, 0));
+        JPanel metrics = new JPanel(new GridLayout(1, 4, 12, 0));
         metrics.setName("dashboardMetrics");
         metrics.setOpaque(false);
-        metrics.setMaximumSize(new Dimension(Integer.MAX_VALUE, 78));
-        metrics.setPreferredSize(new Dimension(800, 78));
+        metrics.setMaximumSize(new Dimension(Integer.MAX_VALUE, 86));
+        metrics.setPreferredSize(new Dimension(800, 86));
         metrics.add(metricCard("REGISTERED DONORS", donorsValue, UiTheme.CORAL));
         metrics.add(availabilityMetricCard());
         metrics.add(metricCard("PENDING REQUESTS", pendingValue, UiTheme.WARNING));
@@ -143,14 +144,10 @@ public final class DashboardPanel extends JPanel {
     }
 
     private JPanel metricCard(String title, JLabel value, Color accent) {
-        JPanel card = new JPanel(new BorderLayout());
-        card.setBackground(UiTheme.SURFACE);
-        card.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createMatteBorder(1, 4, 1, 1, accent),
-                BorderFactory.createEmptyBorder(10, 12, 10, 12)));
+        JPanel card = new RoundedCard(accent);
+        card.setBorder(BorderFactory.createEmptyBorder(12, 14, 10, 14));
         JLabel heading = new JLabel(title);
-        heading.setFont(new java.awt.Font(java.awt.Font.SANS_SERIF,
-                java.awt.Font.BOLD, 10));
+        heading.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 11));
         heading.setForeground(UiTheme.MUTED);
         card.add(heading, BorderLayout.NORTH);
         card.add(value, BorderLayout.CENTER);
@@ -162,8 +159,7 @@ public final class DashboardPanel extends JPanel {
         JPanel footer = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
         footer.setOpaque(false);
         JLabel caption = new JLabel("Expiring within 7 days: ");
-        caption.setFont(new java.awt.Font(java.awt.Font.SANS_SERIF,
-                java.awt.Font.PLAIN, 9));
+        caption.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 10));
         caption.setForeground(UiTheme.MUTED);
         footer.add(caption);
         footer.add(expiringSoonValue);
@@ -174,8 +170,8 @@ public final class DashboardPanel extends JPanel {
     private JPanel buildOperationsRow() {
         JPanel row = new JPanel(new GridBagLayout());
         row.setOpaque(false);
-        row.setMaximumSize(new Dimension(Integer.MAX_VALUE, 292));
-        row.setPreferredSize(new Dimension(900, 292));
+        row.setMaximumSize(new Dimension(Integer.MAX_VALUE, 332));
+        row.setPreferredSize(new Dimension(900, 332));
 
         GridBagConstraints inventory = new GridBagConstraints();
         inventory.gridx = 0;
@@ -183,17 +179,41 @@ public final class DashboardPanel extends JPanel {
         inventory.weightx = 0.68;
         inventory.weighty = 1;
         inventory.fill = GridBagConstraints.BOTH;
-        inventory.insets = new java.awt.Insets(0, 0, 0, 10);
+        inventory.insets = new java.awt.Insets(0, 0, 0, 12);
         row.add(buildInventoryPanel(), inventory);
 
-        GridBagConstraints priority = new GridBagConstraints();
-        priority.gridx = 1;
-        priority.gridy = 0;
-        priority.weightx = 0.32;
-        priority.weighty = 1;
-        priority.fill = GridBagConstraints.BOTH;
-        row.add(buildPriorityPanel(), priority);
+        GridBagConstraints side = new GridBagConstraints();
+        side.gridx = 1;
+        side.gridy = 0;
+        side.weightx = 0.32;
+        side.weighty = 1;
+        side.fill = GridBagConstraints.BOTH;
+        row.add(buildSideColumn(), side);
         return row;
+    }
+
+    private JPanel buildSideColumn() {
+        JPanel column = new JPanel(new GridBagLayout());
+        column.setOpaque(false);
+        column.setMaximumSize(new Dimension(Integer.MAX_VALUE, 332));
+
+        GridBagConstraints priority = new GridBagConstraints();
+        priority.gridx = 0;
+        priority.gridy = 0;
+        priority.weightx = 1;
+        priority.weighty = 0.6;
+        priority.fill = GridBagConstraints.BOTH;
+        priority.insets = new java.awt.Insets(0, 0, 12, 0);
+        column.add(buildPriorityPanel(), priority);
+
+        GridBagConstraints recall = new GridBagConstraints();
+        recall.gridx = 0;
+        recall.gridy = 1;
+        recall.weightx = 1;
+        recall.weighty = 0.4;
+        recall.fill = GridBagConstraints.BOTH;
+        column.add(buildEligiblePanel(), recall);
+        return column;
     }
 
     private JPanel buildInventoryPanel() {
@@ -201,17 +221,17 @@ public final class DashboardPanel extends JPanel {
                 "Available, non-expired units");
         inventoryTable.setName("inventoryStatusTable");
         UiComponents.configureTable(inventoryTable);
-        inventoryTable.setRowHeight(27);
-        inventoryTable.getTableHeader().setPreferredSize(new Dimension(0, 32));
-        inventoryTable.getColumnModel().getColumn(0).setPreferredWidth(110);
+        inventoryTable.setRowHeight(30);
+        inventoryTable.getTableHeader().setPreferredSize(new Dimension(0, 34));
+        inventoryTable.getColumnModel().getColumn(0).setPreferredWidth(130);
         inventoryTable.getColumnModel().getColumn(1).setPreferredWidth(90);
-        inventoryTable.getColumnModel().getColumn(2).setPreferredWidth(120);
+        inventoryTable.getColumnModel().getColumn(2).setPreferredWidth(80);
+        inventoryTable.getColumnModel().getColumn(2).setCellRenderer(expiringRenderer());
         inventoryTable.getColumnModel().getColumn(3)
                 .setCellRenderer(UiComponents.statusRenderer());
         JScrollPane scroll = new JScrollPane(inventoryTable);
         scroll.setBorder(null);
-        panel.add(scroll, java.awt.BorderLayout.CENTER);
-        
+        panel.add(scroll, BorderLayout.CENTER);
         return panel;
     }
 
@@ -222,36 +242,45 @@ public final class DashboardPanel extends JPanel {
         JPanel content = new JPanel();
         content.setBackground(UiTheme.SURFACE);
         content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
-        content.setBorder(BorderFactory.createEmptyBorder(14, 15, 14, 15));
+        content.setBorder(BorderFactory.createEmptyBorder(16, 16, 14, 16));
         content.add(nextKind);
         content.add(Box.createVerticalStrut(5));
         content.add(nextRequester);
-        content.add(Box.createVerticalStrut(13));
+        content.add(Box.createVerticalStrut(14));
 
-        JPanel quantities = new JPanel(new GridLayout(1, 2, 7, 0));
+        JPanel quantities = new JPanel(new GridLayout(1, 2, 8, 0));
         quantities.setOpaque(false);
         quantities.add(quantityBox("REQUIRED", requiredValue));
         quantities.add(quantityBox("AVAILABLE", availableValue));
-        quantities.setMaximumSize(new Dimension(Integer.MAX_VALUE, 61));
+        quantities.setMaximumSize(new Dimension(Integer.MAX_VALUE, 66));
         content.add(quantities);
         content.add(Box.createVerticalGlue());
         processButton.setAlignmentX(Component.LEFT_ALIGNMENT);
-        processButton.setMaximumSize(new Dimension(Integer.MAX_VALUE, 34));
-        processButton.setPreferredSize(new Dimension(160, 34));
+        processButton.setMaximumSize(new Dimension(Integer.MAX_VALUE, 36));
+        processButton.setPreferredSize(new Dimension(170, 36));
         content.add(processButton);
         panel.add(content, BorderLayout.CENTER);
         return panel;
     }
 
+    private JPanel buildEligiblePanel() {
+        JPanel panel = denseSection("Eligible for recall",
+                "Donors ready to donate again");
+        JTable eligibleTable = new JTable(eligibleDonorsModel);
+        UiComponents.configureTable(eligibleTable);
+        eligibleTable.setRowHeight(26);
+        eligibleTable.getTableHeader().setPreferredSize(new Dimension(0, 30));
+        JScrollPane scroll = new JScrollPane(eligibleTable);
+        scroll.setBorder(null);
+        panel.add(scroll, BorderLayout.CENTER);
+        return panel;
+    }
+
     private JPanel quantityBox(String title, JLabel value) {
-        JPanel box = new JPanel(new BorderLayout(0, 3));
-        box.setBackground(new Color(0xF6F7F9));
-        box.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(UiTheme.BORDER),
-                BorderFactory.createEmptyBorder(7, 9, 7, 9)));
+        JPanel box = new RoundedBox(new BorderLayout(0, 3));
+        box.setBorder(BorderFactory.createEmptyBorder(8, 10, 8, 10));
         JLabel label = new JLabel(title);
-        label.setFont(new java.awt.Font(java.awt.Font.SANS_SERIF,
-                java.awt.Font.BOLD, 9));
+        label.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 10));
         label.setForeground(UiTheme.MUTED);
         box.add(label, BorderLayout.NORTH);
         box.add(value, BorderLayout.CENTER);
@@ -260,12 +289,12 @@ public final class DashboardPanel extends JPanel {
 
     private JPanel buildRequestQueue() {
         JPanel panel = denseSection("Request queue", "Current request state");
-        panel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 160));
-        panel.setPreferredSize(new Dimension(900, 160));
+        panel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 170));
+        panel.setPreferredSize(new Dimension(900, 170));
         requestTable.setName("requestQueueTable");
         UiComponents.configureTable(requestTable);
-        requestTable.setRowHeight(30);
-        requestTable.getTableHeader().setPreferredSize(new Dimension(0, 32));
+        requestTable.setRowHeight(32);
+        requestTable.getTableHeader().setPreferredSize(new Dimension(0, 34));
         requestTable.getColumnModel().getColumn(4)
                 .setCellRenderer(UiComponents.statusRenderer());
         JScrollPane scroll = new JScrollPane(requestTable);
@@ -276,19 +305,16 @@ public final class DashboardPanel extends JPanel {
 
     private JPanel denseSection(String title, String caption) {
         JPanel panel = UiComponents.densePanel(new BorderLayout());
-        panel.setBorder(BorderFactory.createLineBorder(UiTheme.BORDER));
         JPanel header = new JPanel(new BorderLayout());
-        header.setBackground(UiTheme.SURFACE);
+        header.setOpaque(false);
         header.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createMatteBorder(0, 0, 1, 0, UiTheme.BORDER),
-                BorderFactory.createEmptyBorder(10, 13, 10, 13)));
+                BorderFactory.createEmptyBorder(11, 14, 11, 14)));
         JLabel heading = new JLabel(title);
-        heading.setFont(new java.awt.Font(java.awt.Font.SANS_SERIF,
-                java.awt.Font.BOLD, 13));
+        heading.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 14));
         heading.setForeground(UiTheme.NAVY);
         JLabel detail = new JLabel(caption, SwingConstants.RIGHT);
-        detail.setFont(new java.awt.Font(java.awt.Font.SANS_SERIF,
-                java.awt.Font.PLAIN, 10));
+        detail.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 10));
         detail.setForeground(UiTheme.MUTED);
         header.add(heading, BorderLayout.WEST);
         header.add(detail, BorderLayout.EAST);
@@ -335,9 +361,13 @@ public final class DashboardPanel extends JPanel {
         }
         eligibleDonorsModel.setRowCount(0);
         for (lifeflow.model.Donor d : snapshot.getDonors()) {
-            lifeflow.model.EligibilityResult er = controller.checkDonorEligibility(d.getId(), today);
+            lifeflow.model.EligibilityResult er =
+                    controller.checkDonorEligibility(d.getId(), today);
             if (er.eligible()) {
-                eligibleDonorsModel.addRow(new Object[]{d.getName(), displayType(d.getBloodType()), er.lastDonationDate() == null ? "Never" : er.lastDonationDate()});
+                eligibleDonorsModel.addRow(new Object[]{d.getName(),
+                        displayType(d.getBloodType()),
+                        er.lastDonationDate() == null ? "Never"
+                                : er.lastDonationDate()});
             }
         }
         unitsValue.setText(Integer.toString(availableUnits));
@@ -347,8 +377,7 @@ public final class DashboardPanel extends JPanel {
             int count = stock.get(type);
             int expiring = expiringByType.get(type);
             inventoryModel.addRow(new Object[]{displayType(type), count,
-                    Math.min(100, count * 33) + "%", stockStatus(count)
-                    + (expiring == 0 ? "" : " · " + expiring + " EXPIRING")});
+                    expiring, stockStatus(count)});
         }
 
         requestModel.setRowCount(0);
@@ -421,19 +450,32 @@ public final class DashboardPanel extends JPanel {
         return count <= 2 ? "LOW" : "READY";
     }
 
+    private static DefaultTableCellRenderer expiringRenderer() {
+        return new DefaultTableCellRenderer() {
+            @Override
+            public Component getTableCellRendererComponent(JTable table, Object value,
+                    boolean isSelected, boolean hasFocus, int row, int column) {
+                Component c = super.getTableCellRendererComponent(table, value,
+                        isSelected, hasFocus, row, column);
+                c.setForeground(value != null && ((Number) value).intValue() > 0
+                        ? UiTheme.WARNING : UiTheme.MUTED);
+                c.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 12));
+                return c;
+            }
+        };
+    }
+
     private static JLabel metricValue(String name) {
         JLabel label = new JLabel("0");
         label.setName(name);
-        label.setFont(new java.awt.Font(java.awt.Font.SANS_SERIF,
-                java.awt.Font.BOLD, 23));
+        label.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 26));
         label.setForeground(UiTheme.NAVY);
         return label;
     }
 
     private static JLabel compactValue(String text) {
         JLabel label = new JLabel(text);
-        label.setFont(new java.awt.Font(java.awt.Font.SANS_SERIF,
-                java.awt.Font.BOLD, 16));
+        label.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 18));
         label.setForeground(UiTheme.NAVY);
         return label;
     }
@@ -441,14 +483,67 @@ public final class DashboardPanel extends JPanel {
     private static JLabel compactMetricValue(String name) {
         JLabel label = new JLabel("0");
         label.setName(name);
-        label.setFont(new java.awt.Font(java.awt.Font.SANS_SERIF,
-                java.awt.Font.BOLD, 9));
+        label.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 10));
         label.setForeground(UiTheme.WARNING);
         return label;
     }
 
     static String displayType(BloodType type) {
         return type.name().replace("_POS", "+").replace("_NEG", "-");
+    }
+
+    /** Metric card with a soft shadow and a rounded accent bar on the left. */
+    private static final class RoundedCard extends JPanel {
+        private static final long serialVersionUID = 1L;
+        private final Color accent;
+
+        private RoundedCard(Color accent) {
+            super(new BorderLayout(0, 2));
+            this.accent = accent;
+            setOpaque(false);
+        }
+
+        @Override
+        protected void paintComponent(Graphics graphics) {
+            Graphics2D copy = (Graphics2D) graphics.create();
+            copy.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
+                    RenderingHints.VALUE_ANTIALIAS_ON);
+            copy.setColor(UiTheme.SHADOW);
+            copy.fillRoundRect(0, 3, getWidth() - 1, getHeight() - 4, 14, 14);
+            copy.setColor(UiTheme.SURFACE);
+            copy.fillRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 14, 14);
+            copy.setColor(UiTheme.BORDER);
+            copy.setStroke(new java.awt.BasicStroke(1f));
+            copy.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 14, 14);
+            copy.setColor(accent);
+            copy.fillRoundRect(0, 10, 4, getHeight() - 20, 4, 4);
+            copy.dispose();
+            super.paintComponent(graphics);
+        }
+    }
+
+    /** Soft pill box used for the required/available quantity pair. */
+    private static final class RoundedBox extends JPanel {
+        private static final long serialVersionUID = 1L;
+
+        private RoundedBox(java.awt.LayoutManager layout) {
+            super(layout);
+            setOpaque(false);
+        }
+
+        @Override
+        protected void paintComponent(Graphics graphics) {
+            Graphics2D copy = (Graphics2D) graphics.create();
+            copy.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
+                    RenderingHints.VALUE_ANTIALIAS_ON);
+            copy.setColor(new Color(0xF6F8FB));
+            copy.fillRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 10, 10);
+            copy.setColor(UiTheme.BORDER);
+            copy.setStroke(new java.awt.BasicStroke(1f));
+            copy.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 10, 10);
+            copy.dispose();
+            super.paintComponent(graphics);
+        }
     }
 
     private static final class ViewportWidthPanel extends JPanel

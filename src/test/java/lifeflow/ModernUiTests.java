@@ -34,6 +34,7 @@ final class ModernUiTests {
         pageShellExposesSharedSections();
         buttonsReserveSpaceForTheirLabels();
         sidebarKeepsOneActivePage();
+        sidebarSignOutButtonFiresHandler();
         dashboardUsesDenseOperationsLayout();
         dashboardRefreshesLiveCounts();
         dataPagesConstructAndRefreshHeadlessly();
@@ -85,6 +86,18 @@ final class ModernUiTests {
             assert !sidebar.isActive("Dashboard");
             assert !UiTheme.SIDEBAR_HOVER.equals(UiTheme.CORAL)
                     : "Hover and active navigation must look different";
+        });
+    }
+
+    private static void sidebarSignOutButtonFiresHandler() throws Exception {
+        SwingUtilities.invokeAndWait(() -> {
+            boolean[] clicked = new boolean[1];
+            SidebarPanel sidebar = new SidebarPanel(page -> { });
+            sidebar.setSignOutHandler(() -> clicked[0] = true);
+            JButton signOut = findButton(sidebar, "Sign out");
+            assert signOut != null : "Sidebar must expose a sign-out action";
+            signOut.doClick();
+            assert clicked[0] : "Sign-out button must invoke its handler";
         });
     }
 

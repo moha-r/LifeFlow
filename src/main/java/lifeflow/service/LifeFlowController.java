@@ -28,6 +28,8 @@ import lifeflow.persistence.StorageInfo;
 public final class LifeFlowController implements AutoCloseable {
     private static final int MAX_PROFILE_AGE = 120;
     private static final double MAX_PROFILE_WEIGHT_KG = 500.0;
+    public static final int REGULAR_STALE_DAYS = 7;
+    public static final int EMERGENCY_STALE_DAYS = 2;
 
     private LifeFlowState state;
     private final LifeFlowStore store;
@@ -157,7 +159,9 @@ public final class LifeFlowController implements AutoCloseable {
         }
         unit.correctDates(correctedDonationDate,
                 donationPolicy.calculateExpiry(correctedDonationDate));
-        commit(state.getDonors(), units, state.getRequests(), state.getFulfilments(), state.getLogs());
+        ArrayList<String> logs = addLog(state.getLogs(),
+                "Corrected donation date of unit " + id);
+        commit(state.getDonors(), units, state.getRequests(), state.getFulfilments(), logs);
     }
 
     public void addRequest(String id, String requester, BloodType type,
@@ -203,6 +207,61 @@ public final class LifeFlowController implements AutoCloseable {
 
     public BloodRequest getNextPendingRequest() {
         return matchingService(state.getUnits()).findNextPending(state.getRequests());
+    }
+
+    /** Cancels a pending request; the reason is recorded in the audit log. */
+    public void declineRequest(String id, String reason) throws IOException {
+        ArrayList<BloodRequest> requests = state.getRequests();
+        BloodRequest request = findRequest(requests, required(id, "Request ID"));
+        if (request == null) {
+            throw new lifeflow.model.exception.EntityNotFoundException("Blood request", id);
+        }
+        if (request.getStatus() == RequestStatus.FULFILLED) {
+            throw new lifeflow.model.exception.ImmutableRecordException(
+                    "Blood request", id, "cannot be declined because it is fulfilled");
+        }
+        if (request.getStatus() == RequestStatus.CANCELLED) {
+            throw new lifeflow.model.exception.ImmutableRecordException(
+                    "Blood request", id, "is already cancelled");
+        }
+        String declineReason = safeText(reason, "Reason");
+        request.markCancelled();
+        ArrayList<String> logs = addLog(state.getLogs(),
+                "Declined request " + request.getId() + " (" + declineReason + ")");
+        commit(state.getDonors(), state.getUnits(), requests,
+                state.getFulfilments(), logs);
+    }
+
+    /** Auto-cancels pending requests that had no stock within their grace period. */
+    public void autoDeclineStaleRequests() throws IOException {
+        LocalDate today = today();
+        ArrayList<BloodRequest> requests = state.getRequests();
+        ArrayList<BloodRequest> stale = new ArrayList<>();
+        for (BloodRequest request : requests) {
+            if (request.getStatus() != RequestStatus.PENDING) {
+                continue;
+            }
+            long days = java.time.temporal.ChronoUnit.DAYS.between(
+                    request.getRequestDate(), today);
+            int limit = request instanceof EmergencyRequest
+                    ? EMERGENCY_STALE_DAYS : REGULAR_STALE_DAYS;
+            if (days > limit) {
+                stale.add(request);
+            }
+        }
+        if (stale.isEmpty()) {
+            return;
+        }
+        ArrayList<String> logs = state.getLogs();
+        for (BloodRequest request : stale) {
+            int limit = request instanceof EmergencyRequest
+                    ? EMERGENCY_STALE_DAYS : REGULAR_STALE_DAYS;
+            request.markCancelled();
+            logs = addLog(logs, "Auto-cancelled request " + request.getId()
+                    + " (no stock within " + limit + " days)");
+        }
+        commit(state.getDonors(), state.getUnits(), requests,
+                state.getFulfilments(), logs);
     }
 
     /** Returns the highest-priority pending request that can be fulfilled in full. */

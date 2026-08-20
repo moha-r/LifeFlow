@@ -57,6 +57,11 @@ public abstract class BloodRequest implements Identifiable {
         status = RequestStatus.FULFILLED;
     }
 
+    /** Marks this request as cancelled before it could be fulfilled. */
+    public void markCancelled() {
+        status = RequestStatus.CANCELLED;
+    }
+
     public void updatePendingDetails(String requesterName, BloodType bloodType,
                                      int quantity) {
         this.requesterName = requesterName;

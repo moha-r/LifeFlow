@@ -13,9 +13,11 @@ import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.SwingConstants;
 import javax.swing.Timer;
+import lifeflow.model.Hospital;
 import lifeflow.model.LifeFlowState;
 import lifeflow.persistence.LifeFlowStore;
 import lifeflow.persistence.StorageInfo;
+import lifeflow.service.HospitalRegistry;
 import lifeflow.service.LifeFlowController;
 
 /** Modern application shell with sidebar navigation and live page refresh. */
@@ -29,6 +31,8 @@ public final class LifeFlowFrame extends JFrame {
     private static final String REPORTS = "Reports";
 
     private final LifeFlowController controller;
+    private final HospitalRegistry registry;
+    private final SessionSwitcher switcher;
     private final CardLayout pageLayout = new CardLayout();
     private final JPanel pages = new JPanel(pageLayout);
     private final JLabel statusLabel = new JLabel(" ");
@@ -45,8 +49,11 @@ public final class LifeFlowFrame extends JFrame {
     private RequestsPanel requestsPanel;
     private MatchingPanel matchingPanel;
 
-    public LifeFlowFrame(LifeFlowState state, LifeFlowStore store) {
+    public LifeFlowFrame(LifeFlowState state, LifeFlowStore store,
+                         HospitalRegistry registry, SessionSwitcher switcher) {
         super("LifeFlow - Blood Donation and Emergency Matching");
+        this.registry = registry;
+        this.switcher = switcher;
         controller = new LifeFlowController(state, store);
         configureWindow();
         buildContent();
@@ -62,15 +69,7 @@ public final class LifeFlowFrame extends JFrame {
         addWindowListener(new WindowAdapter() {
             @Override
             public void windowClosing(WindowEvent event) {
-                try {
-                    controller.close();
-                    dispose();
-                } catch (IOException exception) {
-                    JOptionPane.showMessageDialog(LifeFlowFrame.this,
-                            "LifeFlow could not release its storage lock.\n"
-                                    + exception.getMessage(),
-                            "Close Error", JOptionPane.ERROR_MESSAGE);
-                }
+                closeApplication();
             }
         });
     }
@@ -102,11 +101,47 @@ public final class LifeFlowFrame extends JFrame {
         main.add(buildStatusBar(), BorderLayout.SOUTH);
 
         sidebarPanel = new SidebarPanel(this::showPage);
+        sidebarPanel.setSignOutHandler(this::signOut);
         JPanel root = new JPanel(new BorderLayout());
         root.setBackground(UiTheme.BACKGROUND);
         root.add(sidebarPanel, BorderLayout.WEST);
         root.add(main, BorderLayout.CENTER);
         setContentPane(root);
+    }
+
+    private void signOut() {
+        setVisible(false);
+        LoginResult result = LoginDialog.showAndAuthenticate(registry);
+        if (result == null) {
+            closeApplication();
+            return;
+        }
+        if (result.admin()) {
+            setVisible(true);
+            refreshAllPages();
+            showPage(DASHBOARD);
+            return;
+        }
+        releaseAndDispose();
+        switcher.openHospitalPortal(result.hospital());
+    }
+
+    private void closeApplication() {
+        releaseAndDispose();
+        switcher.exitApplication();
+    }
+
+    private void releaseAndDispose() {
+        try {
+            controller.close();
+            dispose();
+        } catch (IOException exception) {
+            JOptionPane.showMessageDialog(LifeFlowFrame.this,
+                    "LifeFlow could not release its storage lock.\n"
+                            + exception.getMessage(),
+                    "Close Error", JOptionPane.ERROR_MESSAGE);
+            dispose();
+        }
     }
 
     private JPanel buildUtilityBar() {
@@ -186,6 +221,11 @@ public final class LifeFlowFrame extends JFrame {
     }
 
     private void refreshAllPages() {
+        try {
+            controller.autoDeclineStaleRequests();
+        } catch (IOException ignored) {
+            // A stale-request tidy is best effort; the next refresh retries.
+        }
         dashboardPanel.refreshData();
         donorsPanel.refreshData();
         inventoryPanel.refreshData();
