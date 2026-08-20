@@ -2,17 +2,19 @@ package lifeflow.ui;
 
 import java.awt.BorderLayout;
 import java.awt.Color;
+import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
+import java.awt.GridBagConstraints;
+import java.awt.GridBagLayout;
+import java.awt.Insets;
 import java.awt.RenderingHints;
 import java.awt.geom.Path2D;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.function.Consumer;
 import javax.swing.BorderFactory;
-import javax.swing.Box;
-import javax.swing.BoxLayout;
 import javax.swing.JButton;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
@@ -26,6 +28,7 @@ public final class SidebarPanel extends JPanel {
     private static final String[] LABELS = {
         "Overview", "Donors", "Inventory", "Requests", "Matching", "Reports"
     };
+    private static final int H_GAP = 14;
 
     private final Map<String, JButton> navigation = new LinkedHashMap<>();
     private Runnable signOutHandler = () -> { };
@@ -43,14 +46,21 @@ public final class SidebarPanel extends JPanel {
     }
 
     private JPanel buildNavigation(Consumer<String> handler) {
-        JPanel content = new JPanel();
+        JPanel content = new JPanel(new GridBagLayout());
         content.setOpaque(false);
-        content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
-        content.setBorder(BorderFactory.createEmptyBorder(20, 8, 12, 8));
+        content.setBorder(BorderFactory.createEmptyBorder(20, H_GAP, 12, H_GAP));
+
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.gridx = 0;
+        gbc.weightx = 1;
+        gbc.fill = GridBagConstraints.HORIZONTAL;
 
         JPanel brand = new JPanel(new BorderLayout(10, 0));
         brand.setOpaque(false);
-        brand.setBorder(BorderFactory.createEmptyBorder(0, 4, 16, 4));
+        gbc.gridy = 0;
+        gbc.insets = new Insets(0, 0, 16, 0);
+        content.add(brand, gbc);
+
         JLabel drop = new JLabel() {
             @Override
             protected void paintComponent(Graphics g) {
@@ -75,68 +85,79 @@ public final class SidebarPanel extends JPanel {
         };
         drop.setPreferredSize(new Dimension(30, 30));
         brand.add(drop, BorderLayout.WEST);
+
         JPanel titles = new JPanel();
         titles.setOpaque(false);
-        titles.setLayout(new BoxLayout(titles, BoxLayout.Y_AXIS));
+        titles.setLayout(new javax.swing.BoxLayout(titles,
+                javax.swing.BoxLayout.Y_AXIS));
         JLabel name = new JLabel("LifeFlow");
         name.setFont(new java.awt.Font(java.awt.Font.SANS_SERIF,
                 java.awt.Font.BOLD, 20));
         name.setForeground(Color.WHITE);
+        name.setAlignmentX(Component.LEFT_ALIGNMENT);
         JLabel subtitle = new JLabel("Blood operations console");
         subtitle.setFont(UiTheme.SMALL);
         subtitle.setForeground(new Color(0xFF6E90));
+        subtitle.setAlignmentX(Component.LEFT_ALIGNMENT);
         titles.add(name);
-        titles.add(Box.createVerticalStrut(2));
+        titles.add(javax.swing.Box.createVerticalStrut(2));
         titles.add(subtitle);
         brand.add(titles, BorderLayout.CENTER);
-        content.add(brand);
 
         JLabel section = new JLabel("WORKSPACE");
         section.setFont(new java.awt.Font(java.awt.Font.SANS_SERIF,
                 java.awt.Font.BOLD, 10));
         section.setForeground(UiTheme.SIDEBAR_MUTED);
-        section.setBorder(BorderFactory.createEmptyBorder(15, 6, 8, 0));
-        content.add(section);
+        gbc.gridy = 1;
+        gbc.insets = new Insets(0, 0, 8, 0);
+        content.add(section, gbc);
 
         for (int index = 0; index < PAGES.length; index++) {
             String page = PAGES[index];
             JButton button = UiComponents.navButton(LABELS[index]);
             button.setIcon(new NavigationIcon(page, UiTheme.SIDEBAR_MUTED));
-            button.setIconTextGap(10);
+            button.setIconTextGap(12);
             button.addActionListener(event -> handler.accept(page));
             navigation.put(page, button);
-            content.add(button);
-            content.add(Box.createVerticalStrut(3));
+            gbc.gridy = 2 + index;
+            gbc.insets = new Insets(0, 0, 4, 0);
+            content.add(button, gbc);
         }
         return content;
     }
 
     private JPanel buildNotice() {
-        JPanel notice = new JPanel();
+        JPanel notice = new JPanel(new BorderLayout(0, 12));
         notice.setOpaque(false);
-        notice.setLayout(new BoxLayout(notice, BoxLayout.Y_AXIS));
         notice.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createMatteBorder(1, 0, 0, 0,
                         new Color(0x2D374B)),
-                BorderFactory.createEmptyBorder(14, 12, 16, 12)));
+                BorderFactory.createEmptyBorder(14, H_GAP, 16, H_GAP)));
+
+        JPanel copy = new JPanel();
+        copy.setOpaque(false);
+        copy.setLayout(new javax.swing.BoxLayout(copy,
+                javax.swing.BoxLayout.Y_AXIS));
         JLabel title = new JLabel("Educational simulation");
         title.setFont(UiTheme.SMALL);
         title.setForeground(new Color(0xFF819D));
+        title.setAlignmentX(Component.LEFT_ALIGNMENT);
         JLabel detail = new JLabel("Local data · non-clinical");
         detail.setFont(new java.awt.Font(java.awt.Font.SANS_SERIF,
                 java.awt.Font.PLAIN, 10));
         detail.setForeground(UiTheme.SIDEBAR_MUTED);
-        notice.add(title);
-        notice.add(Box.createVerticalStrut(4));
-        notice.add(detail);
-        notice.add(Box.createVerticalStrut(12));
+        detail.setAlignmentX(Component.LEFT_ALIGNMENT);
+        copy.add(title);
+        copy.add(javax.swing.Box.createVerticalStrut(4));
+        copy.add(detail);
+        notice.add(copy, BorderLayout.NORTH);
 
         JButton signOut = UiComponents.signOutButton("Sign out");
         signOut.setName("signOutButton");
         signOut.setIcon(new LogoutIcon(UiTheme.SIDEBAR_MUTED));
-        signOut.setIconTextGap(10);
+        signOut.setIconTextGap(12);
         signOut.addActionListener(event -> signOutHandler.run());
-        notice.add(signOut);
+        notice.add(signOut, BorderLayout.SOUTH);
         return notice;
     }
 
@@ -150,7 +171,7 @@ public final class SidebarPanel extends JPanel {
             JButton button = entry.getValue();
             UiComponents.setNavActive(button, active);
             button.setIcon(new NavigationIcon(entry.getKey(), active
-                    ? java.awt.Color.WHITE : UiTheme.SIDEBAR_MUTED));
+                    ? Color.WHITE : UiTheme.SIDEBAR_MUTED));
         }
     }
 
