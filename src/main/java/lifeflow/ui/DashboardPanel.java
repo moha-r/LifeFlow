@@ -49,8 +49,7 @@ public final class DashboardPanel extends JPanel {
     private final JLabel emergenciesValue = metricValue("emergencyRequestsValue");
     private final JLabel appointmentsValue = metricValue("upcomingAppointmentsValue");
     private final JLabel expiringSoonValue = compactMetricValue("expiringSoonValue");
-    private final DefaultTableModel inventoryModel = UiComponents.readOnlyModel(
-            "Blood Type", "Available", "Expiring", "Status");
+    private final StockCell[] stockCells = createStockCells();
     private final DefaultTableModel eligibleDonorsModel = new DefaultTableModel(
             new String[]{"Donor", "Type", "Eligible Since"}, 0) {
         @Override
@@ -60,7 +59,6 @@ public final class DashboardPanel extends JPanel {
     };
     private final DefaultTableModel requestModel = UiComponents.readOnlyModel(
             "ID", "Requester", "Blood Type", "Qty", "Status");
-    private final JTable inventoryTable = new JTable(inventoryModel);
     private final JTable requestTable = new JTable(requestModel);
     private final JLabel nextKind = UiComponents.heading("No pending requests");
     private final JLabel nextRequester = UiComponents.muted("The queue is clear.");
@@ -108,9 +106,9 @@ public final class DashboardPanel extends JPanel {
         content.setOpaque(false);
         content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
 
-        JPanel metrics = buildMetrics();
-        metrics.setAlignmentX(Component.LEFT_ALIGNMENT);
-        content.add(metrics);
+        JPanel summary = buildSummary();
+        summary.setAlignmentX(Component.LEFT_ALIGNMENT);
+        content.add(summary);
         content.add(Box.createVerticalStrut(UiTheme.SPACE_SM));
 
         JPanel operations = buildOperationsRow();
@@ -131,80 +129,89 @@ public final class DashboardPanel extends JPanel {
         return scroll;
     }
 
-    private JPanel buildMetrics() {
-        JPanel metrics = new JPanel(new GridLayout(1, 5, 12, 0));
+    private JPanel buildSummary() {
+        JPanel summary = UiComponents.densePanel(new BorderLayout());
+        summary.setName("dashboardSummary");
+        summary.setMaximumSize(new Dimension(Integer.MAX_VALUE, 72));
+        summary.setPreferredSize(new Dimension(800, 72));
+
+        JPanel metrics = new JPanel(new GridLayout(1, 5, 0, 0));
         metrics.setName("dashboardMetrics");
         metrics.setOpaque(false);
-        metrics.setMaximumSize(new Dimension(Integer.MAX_VALUE, 86));
-        metrics.setPreferredSize(new Dimension(800, 86));
-        metrics.add(metricCard("REGISTERED DONORS", donorsValue, UiTheme.CORAL));
-        metrics.add(availabilityMetricCard());
-        metrics.add(metricCard("PENDING REQUESTS", pendingValue, UiTheme.WARNING));
-        metrics.add(metricCard("EMERGENCY", emergenciesValue, UiTheme.DANGER));
-        metrics.add(metricCard("UPCOMING APPOINTMENTS", appointmentsValue,
-                UiTheme.NAVY));
-        return metrics;
+        metrics.add(summaryMetric("DONORS", donorsValue, null, false));
+        metrics.add(summaryMetric("AVAILABLE UNITS", unitsValue,
+                expiringSoonValue, true));
+        metrics.add(summaryMetric("PENDING", pendingValue, null, true));
+        emergenciesValue.setForeground(UiTheme.DANGER);
+        metrics.add(summaryMetric("EMERGENCIES", emergenciesValue, null, true));
+        metrics.add(summaryMetric("APPOINTMENTS", appointmentsValue, null, true));
+        summary.add(metrics, BorderLayout.CENTER);
+        return summary;
     }
 
-    private JPanel metricCard(String title, JLabel value, Color accent) {
-        JPanel card = new RoundedCard(accent);
-        card.setBorder(BorderFactory.createEmptyBorder(12, 14, 10, 14));
+    private JPanel summaryMetric(String title, JLabel value, JLabel detail,
+                                 boolean separated) {
+        JPanel metric = new JPanel(new BorderLayout(0, 1));
+        metric.setOpaque(false);
+        metric.setBorder(BorderFactory.createCompoundBorder(
+                separated
+                        ? BorderFactory.createMatteBorder(0, 1, 0, 0,
+                        UiTheme.BORDER)
+                        : BorderFactory.createEmptyBorder(),
+                BorderFactory.createEmptyBorder(9, 14, 8, 14)));
         JLabel heading = new JLabel(title);
-        heading.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 11));
+        heading.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 10));
         heading.setForeground(UiTheme.MUTED);
-        card.add(heading, BorderLayout.NORTH);
-        card.add(value, BorderLayout.CENTER);
-        return card;
-    }
-
-    private JPanel availabilityMetricCard() {
-        JPanel card = metricCard("AVAILABLE UNITS", unitsValue, UiTheme.SUCCESS);
-        JPanel footer = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
-        footer.setOpaque(false);
-        JLabel caption = new JLabel("Expiring within 7 days: ");
-        caption.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 10));
-        caption.setForeground(UiTheme.MUTED);
-        footer.add(caption);
-        footer.add(expiringSoonValue);
-        card.add(footer, BorderLayout.SOUTH);
-        return card;
+        metric.add(heading, BorderLayout.NORTH);
+        metric.add(value, BorderLayout.CENTER);
+        if (detail != null) {
+            JPanel footer = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+            footer.setOpaque(false);
+            JLabel caption = new JLabel("Expiring soon  ");
+            caption.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 9));
+            caption.setForeground(UiTheme.MUTED);
+            footer.add(caption);
+            footer.add(detail);
+            metric.add(footer, BorderLayout.SOUTH);
+        }
+        return metric;
     }
 
     private JPanel buildOperationsRow() {
         JPanel row = new JPanel(new GridBagLayout());
         row.setOpaque(false);
-        row.setMaximumSize(new Dimension(Integer.MAX_VALUE, 332));
-        row.setPreferredSize(new Dimension(900, 332));
+        row.setMaximumSize(new Dimension(Integer.MAX_VALUE, 340));
+        row.setPreferredSize(new Dimension(900, 340));
 
-        GridBagConstraints inventory = new GridBagConstraints();
-        inventory.gridx = 0;
-        inventory.gridy = 0;
-        inventory.weightx = 0.68;
-        inventory.weighty = 1;
-        inventory.fill = GridBagConstraints.BOTH;
-        inventory.insets = new java.awt.Insets(0, 0, 0, 12);
-        row.add(buildInventoryPanel(), inventory);
+        GridBagConstraints action = new GridBagConstraints();
+        action.gridx = 0;
+        action.gridy = 0;
+        action.weightx = 0.38;
+        action.weighty = 1;
+        action.fill = GridBagConstraints.BOTH;
+        action.insets = new java.awt.Insets(0, 0, 0, 12);
+        row.add(buildActionColumn(), action);
 
-        GridBagConstraints side = new GridBagConstraints();
-        side.gridx = 1;
-        side.gridy = 0;
-        side.weightx = 0.32;
-        side.weighty = 1;
-        side.fill = GridBagConstraints.BOTH;
-        row.add(buildSideColumn(), side);
+        GridBagConstraints stock = new GridBagConstraints();
+        stock.gridx = 1;
+        stock.gridy = 0;
+        stock.weightx = 0.62;
+        stock.weighty = 1;
+        stock.fill = GridBagConstraints.BOTH;
+        row.add(buildStockPanel(), stock);
         return row;
     }
 
-    private JPanel buildSideColumn() {
+    private JPanel buildActionColumn() {
         JPanel column = new JPanel(new GridBagLayout());
         column.setOpaque(false);
-        column.setMaximumSize(new Dimension(Integer.MAX_VALUE, 332));
+        column.setMaximumSize(new Dimension(Integer.MAX_VALUE, 340));
 
         GridBagConstraints priority = new GridBagConstraints();
         priority.gridx = 0;
         priority.gridy = 0;
         priority.weightx = 1;
-        priority.weighty = 0.6;
+        priority.weighty = 0.63;
         priority.fill = GridBagConstraints.BOTH;
         priority.insets = new java.awt.Insets(0, 0, 12, 0);
         column.add(buildPriorityPanel(), priority);
@@ -213,43 +220,40 @@ public final class DashboardPanel extends JPanel {
         recall.gridx = 0;
         recall.gridy = 1;
         recall.weightx = 1;
-        recall.weighty = 0.4;
+        recall.weighty = 0.37;
         recall.fill = GridBagConstraints.BOTH;
         column.add(buildEligiblePanel(), recall);
         return column;
     }
 
-    private JPanel buildInventoryPanel() {
-        JPanel panel = denseSection("Inventory status",
-                "Available, non-expired units");
-        inventoryTable.setName("inventoryStatusTable");
-        UiComponents.configureTable(inventoryTable);
-        inventoryTable.setRowHeight(30);
-        inventoryTable.getTableHeader().setPreferredSize(new Dimension(0, 34));
-        inventoryTable.getColumnModel().getColumn(0).setPreferredWidth(130);
-        inventoryTable.getColumnModel().getColumn(1).setPreferredWidth(90);
-        inventoryTable.getColumnModel().getColumn(2).setPreferredWidth(80);
-        inventoryTable.getColumnModel().getColumn(2).setCellRenderer(expiringRenderer());
-        inventoryTable.getColumnModel().getColumn(3)
-                .setCellRenderer(UiComponents.statusRenderer());
-        JScrollPane scroll = new JScrollPane(inventoryTable);
-        scroll.setBorder(null);
-        panel.add(scroll, BorderLayout.CENTER);
+    private JPanel buildStockPanel() {
+        JPanel panel = denseSection("Blood availability",
+                "Available and non-expired");
+        panel.setName("inventoryOverviewPanel");
+        JPanel grid = new JPanel(new GridLayout(2, 4, 0, 0));
+        grid.setName("inventoryStockGrid");
+        grid.setBackground(UiTheme.SURFACE);
+        for (StockCell cell : stockCells) {
+            grid.add(cell);
+        }
+        panel.add(grid, BorderLayout.CENTER);
         return panel;
     }
 
     private JPanel buildPriorityPanel() {
-        JPanel panel = denseSection("Next fulfilable request",
-                "Highest priority request with full stock");
-        panel.setName("priorityRequestPanel");
+        JPanel panel = denseSection("Next action", "Highest priority ready");
+        panel.setName("nextActionPanel");
         JPanel content = new JPanel();
+        content.setName("priorityRequestPanel");
         content.setBackground(UiTheme.SURFACE);
         content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
-        content.setBorder(BorderFactory.createEmptyBorder(16, 16, 14, 16));
+        content.setBorder(BorderFactory.createEmptyBorder(14, 16, 14, 16));
+        nextKind.setAlignmentX(Component.LEFT_ALIGNMENT);
+        nextRequester.setAlignmentX(Component.LEFT_ALIGNMENT);
         content.add(nextKind);
         content.add(Box.createVerticalStrut(5));
         content.add(nextRequester);
-        content.add(Box.createVerticalStrut(14));
+        content.add(Box.createVerticalStrut(12));
 
         JPanel quantities = new JPanel(new GridLayout(1, 2, 8, 0));
         quantities.setOpaque(false);
@@ -292,8 +296,8 @@ public final class DashboardPanel extends JPanel {
 
     private JPanel buildRequestQueue() {
         JPanel panel = denseSection("Request queue", "Current request state");
-        panel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 170));
-        panel.setPreferredSize(new Dimension(900, 170));
+        panel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 190));
+        panel.setPreferredSize(new Dimension(900, 190));
         requestTable.setName("requestQueueTable");
         UiComponents.configureTable(requestTable);
         requestTable.setRowHeight(32);
@@ -377,12 +381,11 @@ public final class DashboardPanel extends JPanel {
         }
         unitsValue.setText(Integer.toString(availableUnits));
         expiringSoonValue.setText(Integer.toString(expiringSoon));
-        inventoryModel.setRowCount(0);
         for (BloodType type : BloodType.values()) {
             int count = stock.get(type);
             int expiring = expiringByType.get(type);
-            inventoryModel.addRow(new Object[]{displayType(type), count,
-                    expiring, stockStatus(count)});
+            stockCells[type.ordinal()].update(count, expiring,
+                    stockStatus(count));
         }
 
         requestModel.setRowCount(0);
@@ -455,19 +458,13 @@ public final class DashboardPanel extends JPanel {
         return count <= 2 ? "LOW" : "READY";
     }
 
-    private static DefaultTableCellRenderer expiringRenderer() {
-        return new DefaultTableCellRenderer() {
-            @Override
-            public Component getTableCellRendererComponent(JTable table, Object value,
-                    boolean isSelected, boolean hasFocus, int row, int column) {
-                Component c = super.getTableCellRendererComponent(table, value,
-                        isSelected, hasFocus, row, column);
-                c.setForeground(value != null && ((Number) value).intValue() > 0
-                        ? UiTheme.WARNING : UiTheme.MUTED);
-                c.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 12));
-                return c;
-            }
-        };
+    private static StockCell[] createStockCells() {
+        BloodType[] types = BloodType.values();
+        StockCell[] cells = new StockCell[types.length];
+        for (int index = 0; index < types.length; index++) {
+            cells[index] = new StockCell(types[index], index);
+        }
+        return cells;
     }
 
     private static JLabel metricValue(String name) {
@@ -497,33 +494,57 @@ public final class DashboardPanel extends JPanel {
         return type.name().replace("_POS", "+").replace("_NEG", "-");
     }
 
-    /** Metric card with a soft shadow and a rounded accent bar on the left. */
-    private static final class RoundedCard extends JPanel {
+    /** One cell in the eight-type stock matrix. */
+    private static final class StockCell extends JPanel {
         private static final long serialVersionUID = 1L;
-        private final Color accent;
+        private final JLabel count = new JLabel("0", SwingConstants.RIGHT);
+        private final JLabel state = new JLabel("EMPTY");
+        private final JLabel expiry = new JLabel("No expiry risk",
+                SwingConstants.RIGHT);
 
-        private RoundedCard(Color accent) {
-            super(new BorderLayout(0, 2));
-            this.accent = accent;
-            setOpaque(false);
+        private StockCell(BloodType type, int index) {
+            super(new BorderLayout(8, 8));
+            setBackground(index % 2 == 0 ? UiTheme.SURFACE
+                    : UiTheme.ROW_ALT);
+            setBorder(BorderFactory.createCompoundBorder(
+                    BorderFactory.createMatteBorder(0, 0,
+                            index < 4 ? 1 : 0,
+                            index % 4 == 3 ? 0 : 1, UiTheme.BORDER),
+                    BorderFactory.createEmptyBorder(13, 14, 12, 14)));
+
+            JLabel bloodType = new JLabel(displayType(type));
+            bloodType.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 14));
+            bloodType.setForeground(UiTheme.NAVY);
+            count.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 24));
+            count.setForeground(UiTheme.NAVY);
+            JPanel top = new JPanel(new BorderLayout());
+            top.setOpaque(false);
+            top.add(bloodType, BorderLayout.WEST);
+            top.add(count, BorderLayout.EAST);
+            add(top, BorderLayout.CENTER);
+
+            state.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 10));
+            expiry.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 9));
+            expiry.setForeground(UiTheme.MUTED);
+            JPanel bottom = new JPanel(new BorderLayout(6, 0));
+            bottom.setOpaque(false);
+            bottom.add(state, BorderLayout.WEST);
+            bottom.add(expiry, BorderLayout.EAST);
+            add(bottom, BorderLayout.SOUTH);
         }
 
-        @Override
-        protected void paintComponent(Graphics graphics) {
-            Graphics2D copy = (Graphics2D) graphics.create();
-            copy.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
-                    RenderingHints.VALUE_ANTIALIAS_ON);
-            copy.setColor(UiTheme.SHADOW);
-            copy.fillRoundRect(0, 3, getWidth() - 1, getHeight() - 4, 14, 14);
-            copy.setColor(UiTheme.SURFACE);
-            copy.fillRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 14, 14);
-            copy.setColor(UiTheme.BORDER);
-            copy.setStroke(new java.awt.BasicStroke(1f));
-            copy.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 14, 14);
-            copy.setColor(accent);
-            copy.fillRoundRect(0, 10, 4, getHeight() - 20, 4, 4);
-            copy.dispose();
-            super.paintComponent(graphics);
+        private void update(int available, int expiring, String status) {
+            count.setText(Integer.toString(available));
+            state.setText(status);
+            state.setForeground(switch (status) {
+                case "READY" -> UiTheme.SUCCESS;
+                case "LOW" -> UiTheme.WARNING;
+                default -> UiTheme.DANGER;
+            });
+            expiry.setText(expiring == 0 ? "No expiry risk"
+                    : expiring + " expiring soon");
+            expiry.setForeground(expiring == 0 ? UiTheme.MUTED
+                    : UiTheme.WARNING);
         }
     }
 

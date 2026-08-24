@@ -14,7 +14,7 @@ import javax.swing.JPanel;
 import lifeflow.model.BloodType;
 
 @SuppressWarnings("serial")
-public class PieChartPanel extends JPanel {
+public final class PieChartPanel extends JPanel {
     private HashMap<BloodType, Integer> data = new HashMap<>();
     private static final Map<BloodType, Color> COLORS = Map.of(
             BloodType.O_POS, new Color(0xE53935),

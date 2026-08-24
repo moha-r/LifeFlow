@@ -2,6 +2,8 @@ package lifeflow.model.exception;
 
 /** Thrown when input data fails domain validation rules. */
 public class ValidationException extends LifeFlowException {
+    private static final long serialVersionUID = 1L;
+
     private final String fieldName;
 
     /**

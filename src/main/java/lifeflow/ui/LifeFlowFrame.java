@@ -55,7 +55,7 @@ public final class LifeFlowFrame extends JFrame {
 
     public LifeFlowFrame(LifeFlowState state, LifeFlowStore store,
                          HospitalRegistry registry, SessionSwitcher switcher) {
-        super("LifeFlow - Blood Donation and Emergency Matching");
+        super("LifeFlow");
         this.registry = registry;
         this.switcher = switcher;
         controller = new LifeFlowController(state, store);

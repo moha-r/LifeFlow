@@ -108,9 +108,10 @@ final class ModernUiTests {
                 controller, () -> { }, () -> { }, () -> { }, () -> { }));
 
         assert namedComponent(panel[0], "dashboardMetrics") != null;
-        Component inventory = namedComponent(panel[0], "inventoryStatusTable");
-        assert inventory instanceof JTable;
-        assert ((JTable) inventory).getColumnCount() == 4;
+        Component inventory = namedComponent(panel[0], "inventoryStockGrid");
+        assert inventory instanceof JPanel;
+        assert ((JPanel) inventory).getComponentCount() == BloodType.values().length;
+        assert namedComponent(panel[0], "nextActionPanel") != null;
         assert namedComponent(panel[0], "priorityRequestPanel") != null;
         assert namedComponent(panel[0], "requestQueueTable") instanceof JTable;
         Component dashboardScroll = namedComponent(panel[0], "dashboardScroll");

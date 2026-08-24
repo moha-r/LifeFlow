@@ -6,6 +6,7 @@ package lifeflow.model.exception;
  * fulfilled requests, or donors whose blood type is linked to existing units).
  */
 public class ImmutableRecordException extends LifeFlowException {
+    private static final long serialVersionUID = 1L;
 
     /**
      * @param entityType human-readable type name (e.g. "Blood unit", "Request")

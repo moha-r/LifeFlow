@@ -22,6 +22,7 @@ import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.JButton;
 import javax.swing.JComboBox;
+import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JPasswordField;
@@ -41,6 +42,8 @@ import lifeflow.service.HospitalRegistry;
 public final class LoginPanel extends JPanel {
     public static final Color BRAND = new Color(0x172033);
     private static final Color BRAND_ACCENT = new Color(0x24314A);
+    private static final Color FORM_LABEL = new Color(0x34425B);
+    private static final int REGISTRATION_FIELD_HEIGHT = 48;
 
     /** The three account roles offered on the sign-in screen. */
     public enum Role {
@@ -90,10 +93,10 @@ public final class LoginPanel extends JPanel {
         this.signupService = signupService;
         this.onSuccess = onSuccess;
         setOpaque(false);
-        setPreferredSize(new Dimension(840, 560));
+        setPreferredSize(new Dimension(960, 760));
 
         BrandPanel brand = new BrandPanel(accessLabel);
-        brand.setPreferredSize(new Dimension(280, 560));
+        brand.setPreferredSize(new Dimension(260, 760));
         add(brand, BorderLayout.WEST);
         add(buildShell(), BorderLayout.CENTER);
     }
@@ -106,8 +109,8 @@ public final class LoginPanel extends JPanel {
         copy.setColor(UiTheme.SHADOW);
         copy.fillRoundRect(0, 6, getWidth() - 1, getHeight() - 6, 22, 22);
         java.awt.GradientPaint sheen = new java.awt.GradientPaint(
-                0, 0, new Color(255, 255, 255, 152),
-                0, getHeight(), new Color(245, 248, 253, 128));
+                0, 0, Color.WHITE,
+                0, getHeight(), new Color(0xF7F9FC));
         copy.setPaint(sheen);
         copy.fillRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 20, 20);
         copy.setColor(new Color(229, 234, 242, 190));
@@ -286,7 +289,7 @@ public final class LoginPanel extends JPanel {
     private JPanel buildRegisterCard() {
         JPanel form = new JPanel(new GridBagLayout());
         form.setOpaque(false);
-        form.setBorder(BorderFactory.createEmptyBorder(20, 48, 16, 48));
+        form.setBorder(BorderFactory.createEmptyBorder(34, 64, 30, 64));
 
         GridBagConstraints gbc = new GridBagConstraints();
         gbc.gridx = 0;
@@ -295,54 +298,54 @@ public final class LoginPanel extends JPanel {
         gbc.fill = GridBagConstraints.HORIZONTAL;
 
         JLabel registerHeading = new JLabel("Hospital Registration");
-        registerHeading.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 28));
+        registerHeading.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 30));
         registerHeading.setForeground(UiTheme.NAVY);
         gbc.insets = new Insets(0, 0, 4, 0);
         form.add(registerHeading, gbc);
 
         JLabel registerSubtitle = new JLabel(
                 "Create an account to place blood requests.");
-        registerSubtitle.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 13));
+        registerSubtitle.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 14));
         registerSubtitle.setForeground(UiTheme.MUTED);
         gbc.gridy++;
-        gbc.insets = new Insets(0, 0, 16, 0);
+        gbc.insets = new Insets(0, 0, 22, 0);
         form.add(registerSubtitle, gbc);
 
         JTextField registerName = new RoundedField();
         registerName.setName("registerName");
-        registerName.setPreferredSize(new Dimension(300, 40));
+        registerName.setPreferredSize(new Dimension(520, REGISTRATION_FIELD_HEIGHT));
         gbc.gridy++;
         gbc.insets = new Insets(0, 0, 3, 0);
         form.add(fieldLabel("HOSPITAL NAME"), gbc);
         gbc.gridy++;
-        gbc.insets = new Insets(0, 0, 10, 0);
+        gbc.insets = new Insets(0, 0, 16, 0);
         form.add(registerName, gbc);
 
         JTextField registerUsername = new RoundedField();
         registerUsername.setName("registerUsername");
-        registerUsername.setPreferredSize(new Dimension(300, 40));
+        registerUsername.setPreferredSize(new Dimension(520, REGISTRATION_FIELD_HEIGHT));
         registerUsername.addActionListener(event -> submitRegistration());
         gbc.gridy++;
         gbc.insets = new Insets(0, 0, 3, 0);
         form.add(fieldLabel("USERNAME"), gbc);
         gbc.gridy++;
-        gbc.insets = new Insets(0, 0, 10, 0);
+        gbc.insets = new Insets(0, 0, 16, 0);
         form.add(registerUsername, gbc);
 
         JPasswordField registerPassword = new RoundedSecretField();
         registerPassword.setName("registerPassword");
-        registerPassword.setPreferredSize(new Dimension(300, 40));
+        registerPassword.setPreferredSize(new Dimension(520, REGISTRATION_FIELD_HEIGHT));
         registerPassword.addActionListener(event -> submitRegistration());
         gbc.gridy++;
         gbc.insets = new Insets(0, 0, 3, 0);
         form.add(fieldLabel("PASSWORD (MIN 4 CHARACTERS)"), gbc);
         gbc.gridy++;
-        gbc.insets = new Insets(0, 0, 10, 0);
+        gbc.insets = new Insets(0, 0, 16, 0);
         form.add(registerPassword, gbc);
 
         JPasswordField registerConfirm = new RoundedSecretField();
         registerConfirm.setName("registerConfirm");
-        registerConfirm.setPreferredSize(new Dimension(300, 40));
+        registerConfirm.setPreferredSize(new Dimension(520, REGISTRATION_FIELD_HEIGHT));
         registerConfirm.addActionListener(event -> submitRegistration());
         gbc.gridy++;
         gbc.insets = new Insets(0, 0, 3, 0);
@@ -363,8 +366,8 @@ public final class LoginPanel extends JPanel {
         JButton registerButton = UiComponents.primaryButton("Create account");
         registerButton.setName("registerButton");
         registerButton.putClientProperty("hero", true);
-        registerButton.setMaximumSize(new Dimension(Integer.MAX_VALUE, 42));
-        registerButton.setPreferredSize(new Dimension(300, 42));
+        registerButton.setMaximumSize(new Dimension(Integer.MAX_VALUE, 48));
+        registerButton.setPreferredSize(new Dimension(520, 48));
         registerButton.addActionListener(event -> submitRegistration());
         gbc.gridy++;
         gbc.insets = new Insets(0, 0, 8, 0);
@@ -372,8 +375,8 @@ public final class LoginPanel extends JPanel {
 
         JButton backButton = UiComponents.secondaryButton("Back to sign in");
         backButton.setName("backToLoginButton");
-        backButton.setMaximumSize(new Dimension(Integer.MAX_VALUE, 40));
-        backButton.setPreferredSize(new Dimension(300, 40));
+        backButton.setMaximumSize(new Dimension(Integer.MAX_VALUE, 44));
+        backButton.setPreferredSize(new Dimension(520, 44));
         backButton.addActionListener(event -> cards.show(cardHost, "login"));
         gbc.gridy++;
         gbc.insets = new Insets(0, 0, 0, 0);
@@ -388,7 +391,7 @@ public final class LoginPanel extends JPanel {
     private JPanel buildDonorRegisterCard() {
         JPanel form = new JPanel(new GridBagLayout());
         form.setOpaque(false);
-        form.setBorder(BorderFactory.createEmptyBorder(16, 48, 12, 48));
+        form.setBorder(BorderFactory.createEmptyBorder(28, 64, 24, 64));
 
         GridBagConstraints gbc = new GridBagConstraints();
         gbc.gridx = 0;
@@ -397,82 +400,80 @@ public final class LoginPanel extends JPanel {
         gbc.fill = GridBagConstraints.HORIZONTAL;
 
         JLabel registerHeading = new JLabel("Donor Registration");
-        registerHeading.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 28));
+        registerHeading.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 30));
         registerHeading.setForeground(UiTheme.NAVY);
         gbc.insets = new Insets(0, 0, 4, 0);
         form.add(registerHeading, gbc);
 
         JLabel registerSubtitle = new JLabel(
                 "Create an account to track your donation status.");
-        registerSubtitle.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 13));
+        registerSubtitle.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 14));
         registerSubtitle.setForeground(UiTheme.MUTED);
         gbc.gridy++;
-        gbc.insets = new Insets(0, 0, 14, 0);
+        gbc.insets = new Insets(0, 0, 20, 0);
         form.add(registerSubtitle, gbc);
 
         JTextField donorName = new RoundedField();
         donorName.setName("donorName");
-        donorName.setPreferredSize(new Dimension(300, 40));
+        donorName.setPreferredSize(new Dimension(520, REGISTRATION_FIELD_HEIGHT));
         gbc.gridy++;
         gbc.insets = new Insets(0, 0, 3, 0);
         form.add(fieldLabel("FULL NAME"), gbc);
         gbc.gridy++;
-        gbc.insets = new Insets(0, 0, 10, 0);
+        gbc.insets = new Insets(0, 0, 14, 0);
         form.add(donorName, gbc);
 
         JTextField donorAge = new RoundedField();
         donorAge.setName("donorAge");
-        donorAge.setPreferredSize(new Dimension(138, 40));
+        donorAge.setPreferredSize(new Dimension(250, REGISTRATION_FIELD_HEIGHT));
         JTextField donorWeight = new RoundedField();
         donorWeight.setName("donorWeight");
-        donorWeight.setPreferredSize(new Dimension(138, 40));
-        JPanel measureRow = new JPanel(new GridLayout(1, 2, 10, 0));
+        donorWeight.setPreferredSize(new Dimension(250, REGISTRATION_FIELD_HEIGHT));
+        JPanel measureRow = new JPanel(new GridLayout(1, 2, 14, 0));
         measureRow.setOpaque(false);
-        measureRow.add(donorAge);
-        measureRow.add(donorWeight);
+        measureRow.add(labeledControl("donorAgeLabel", "AGE", donorAge));
+        measureRow.add(labeledControl("donorWeightLabel", "WEIGHT (KG)",
+                donorWeight));
         gbc.gridy++;
-        gbc.insets = new Insets(0, 0, 3, 0);
-        form.add(fieldLabel("AGE / WEIGHT (KG)"), gbc);
-        gbc.gridy++;
-        gbc.insets = new Insets(0, 0, 10, 0);
+        gbc.insets = new Insets(0, 0, 14, 0);
         form.add(measureRow, gbc);
 
         JComboBox<BloodType> donorType = new JComboBox<>(BloodType.values());
         donorType.setName("donorBloodType");
         UiComponents.styleInput(donorType);
-        donorType.setPreferredSize(new Dimension(300, 40));
+        donorType.setPreferredSize(new Dimension(520, REGISTRATION_FIELD_HEIGHT));
         gbc.gridy++;
         gbc.insets = new Insets(0, 0, 3, 0);
         form.add(fieldLabel("BLOOD TYPE"), gbc);
         gbc.gridy++;
-        gbc.insets = new Insets(0, 0, 10, 0);
+        gbc.insets = new Insets(0, 0, 14, 0);
         form.add(donorType, gbc);
 
         JTextField donorUsername = new RoundedField();
         donorUsername.setName("donorUsername");
-        donorUsername.setPreferredSize(new Dimension(300, 40));
+        donorUsername.setPreferredSize(new Dimension(520, REGISTRATION_FIELD_HEIGHT));
         donorUsername.addActionListener(event -> submitDonorRegistration());
         gbc.gridy++;
         gbc.insets = new Insets(0, 0, 3, 0);
         form.add(fieldLabel("USERNAME"), gbc);
         gbc.gridy++;
-        gbc.insets = new Insets(0, 0, 10, 0);
+        gbc.insets = new Insets(0, 0, 14, 0);
         form.add(donorUsername, gbc);
 
         JPasswordField donorPassword = new RoundedSecretField();
         donorPassword.setName("donorPassword");
-        donorPassword.setPreferredSize(new Dimension(300, 40));
+        donorPassword.setPreferredSize(new Dimension(520, REGISTRATION_FIELD_HEIGHT));
         donorPassword.addActionListener(event -> submitDonorRegistration());
         gbc.gridy++;
         gbc.insets = new Insets(0, 0, 3, 0);
         form.add(fieldLabel("PASSWORD (MIN 4 CHARACTERS)"), gbc);
         gbc.gridy++;
-        gbc.insets = new Insets(0, 0, 10, 0);
+        gbc.insets = new Insets(0, 0, 14, 0);
         form.add(donorPassword, gbc);
 
         JPasswordField donorConfirm = new RoundedSecretField();
         donorConfirm.setName("donorConfirm");
-        donorConfirm.setPreferredSize(new Dimension(300, 40));
+        donorConfirm.setPreferredSize(new Dimension(520, REGISTRATION_FIELD_HEIGHT));
         donorConfirm.addActionListener(event -> submitDonorRegistration());
         gbc.gridy++;
         gbc.insets = new Insets(0, 0, 3, 0);
@@ -493,8 +494,8 @@ public final class LoginPanel extends JPanel {
         JButton donorRegisterButton = UiComponents.primaryButton("Create account");
         donorRegisterButton.setName("donorRegisterButton");
         donorRegisterButton.putClientProperty("hero", true);
-        donorRegisterButton.setMaximumSize(new Dimension(Integer.MAX_VALUE, 42));
-        donorRegisterButton.setPreferredSize(new Dimension(300, 42));
+        donorRegisterButton.setMaximumSize(new Dimension(Integer.MAX_VALUE, 48));
+        donorRegisterButton.setPreferredSize(new Dimension(520, 48));
         donorRegisterButton.addActionListener(event -> submitDonorRegistration());
         gbc.gridy++;
         gbc.insets = new Insets(0, 0, 8, 0);
@@ -502,8 +503,8 @@ public final class LoginPanel extends JPanel {
 
         JButton donorBackButton = UiComponents.secondaryButton("Back to sign in");
         donorBackButton.setName("donorBackButton");
-        donorBackButton.setMaximumSize(new Dimension(Integer.MAX_VALUE, 40));
-        donorBackButton.setPreferredSize(new Dimension(300, 40));
+        donorBackButton.setMaximumSize(new Dimension(Integer.MAX_VALUE, 44));
+        donorBackButton.setPreferredSize(new Dimension(520, 44));
         donorBackButton.addActionListener(event -> cards.show(cardHost, "login"));
         gbc.gridy++;
         gbc.insets = new Insets(0, 0, 0, 0);
@@ -651,9 +652,20 @@ public final class LoginPanel extends JPanel {
 
     private static JLabel fieldLabel(String text) {
         JLabel label = new JLabel(text);
-        label.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 10));
-        label.setForeground(UiTheme.MUTED);
+        label.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 12));
+        label.setForeground(FORM_LABEL);
         return label;
+    }
+
+    private static JPanel labeledControl(String labelName, String text,
+                                         JComponent control) {
+        JPanel group = new JPanel(new BorderLayout(0, 5));
+        group.setOpaque(false);
+        JLabel label = fieldLabel(text);
+        label.setName(labelName);
+        group.add(label, BorderLayout.NORTH);
+        group.add(control, BorderLayout.CENTER);
+        return group;
     }
 
     /** Validates the fields; on success runs the callback, otherwise shows an error. */
@@ -824,13 +836,6 @@ public final class LoginPanel extends JPanel {
             name.setForeground(Color.WHITE);
             name.setAlignmentX(CENTER_ALIGNMENT);
             add(name);
-            add(Box.createVerticalStrut(6));
-            JLabel tagline = new JLabel("<html><div style='text-align:center'>"
-                    + "Blood Donation &amp;<br>Emergency Matching</div></html>");
-            tagline.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 12));
-            tagline.setForeground(UiTheme.SIDEBAR_MUTED);
-            tagline.setAlignmentX(CENTER_ALIGNMENT);
-            add(tagline);
             add(Box.createVerticalGlue());
             accessLabel.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 9));
             accessLabel.setForeground(new Color(0x8D98AD));

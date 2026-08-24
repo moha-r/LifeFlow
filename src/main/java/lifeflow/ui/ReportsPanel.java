@@ -18,7 +18,7 @@ import java.util.HashMap;
 import java.util.List;
 
 @SuppressWarnings("serial")
-public class ReportsPanel extends JPanel {
+public final class ReportsPanel extends JPanel {
     private final LifeFlowController controller;
     private final PieChartPanel pieChartPanel;
     private final JLabel donorsValue = metricValue("reportsDonorsValue");

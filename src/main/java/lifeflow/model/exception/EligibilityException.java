@@ -4,6 +4,8 @@ import lifeflow.model.EligibilityResult;
 
 /** Thrown when a donor does not meet the donation eligibility rules. */
 public class EligibilityException extends LifeFlowException {
+    private static final long serialVersionUID = 1L;
+
     private final EligibilityResult result;
 
     /**

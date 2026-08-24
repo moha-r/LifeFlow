@@ -11,6 +11,8 @@ package lifeflow.model.exception;
  * for targeted recovery.</p>
  */
 public abstract class LifeFlowException extends RuntimeException {
+    private static final long serialVersionUID = 1L;
+
     private final String entityId;
 
     /**

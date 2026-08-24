@@ -12,6 +12,7 @@ import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
+import java.awt.GridLayout;
 import java.awt.Insets;
 import java.awt.RenderingHints;
 import java.awt.Window;
@@ -84,14 +85,17 @@ public final class DonorPortalFrame extends JFrame {
                     "Status");
     private final JTable appointmentsTable = new JTable(appointmentsModel);
     private final DefaultTableModel urgentModel =
-            UiComponents.readOnlyModel("Request", "Kind", "Blood Type",
-                    "Quantity", "Date");
+            UiComponents.readOnlyModel("Request", "Priority", "Need", "Date");
     private final JTable urgentTable = new JTable(urgentModel);
     private final JLabel notice = new JLabel(" ");
     private final StatusChipLabel statusChip = new StatusChipLabel();
     private final JLabel statusReason = new JLabel(" ");
     private final JLabel statusSummary = new JLabel(" ");
+    private final JLabel donorGreeting = new JLabel("Hi");
     private final JLabel donationCount = new JLabel(" ");
+    private final JLabel overviewBloodType = new JLabel("—");
+    private final JLabel overviewLastDonation = new JLabel("—");
+    private final JLabel overviewDonationCount = new JLabel("0");
     private final JButton editProfileButton =
             UiComponents.secondaryButton("Edit profile");
     private final JButton changePasswordButton =
@@ -117,8 +121,8 @@ public final class DonorPortalFrame extends JFrame {
 
     private void configureWindow() {
         setDefaultCloseOperation(DO_NOTHING_ON_CLOSE);
-        setSize(1040, 640);
-        setMinimumSize(new Dimension(900, 560));
+        setSize(1180, 760);
+        setMinimumSize(new Dimension(960, 640));
         setLocationRelativeTo(null);
         addWindowListener(new WindowAdapter() {
             @Override
@@ -133,26 +137,70 @@ public final class DonorPortalFrame extends JFrame {
         root.setBackground(UiTheme.BACKGROUND);
         root.add(buildHeader(), BorderLayout.NORTH);
 
-        JPanel body = new JPanel(new BorderLayout(0, 20));
-        body.setOpaque(false);
-        body.setBorder(BorderFactory.createEmptyBorder(UiTheme.SPACE_LG,
-                UiTheme.SPACE_LG, UiTheme.SPACE_LG, UiTheme.SPACE_LG));
-        JPanel west = new JPanel();
-        west.setOpaque(false);
-        west.setLayout(new BoxLayout(west, BoxLayout.Y_AXIS));
-        west.add(buildStatusCard());
-        west.add(Box.createVerticalStrut(20));
-        west.add(buildUrgentCard());
-        body.add(west, BorderLayout.WEST);
-        JPanel center = new JPanel();
-        center.setOpaque(false);
-        center.setLayout(new BoxLayout(center, BoxLayout.Y_AXIS));
-        center.add(buildHistoryCard());
-        center.add(Box.createVerticalStrut(20));
-        center.add(buildAppointmentsCard());
-        body.add(center, BorderLayout.CENTER);
-        root.add(body, BorderLayout.CENTER);
+        JPanel dashboard = new JPanel();
+        dashboard.setName("donorPortalContent");
+        dashboard.setOpaque(false);
+        dashboard.setLayout(new BoxLayout(dashboard, BoxLayout.Y_AXIS));
+        dashboard.setBorder(BorderFactory.createEmptyBorder(24, 24, 28, 24));
+        dashboard.setPreferredSize(new Dimension(1280, 1010));
+        dashboard.add(buildPageHeader());
+        dashboard.add(Box.createVerticalStrut(18));
+        dashboard.add(buildOverviewPanel());
+        dashboard.add(Box.createVerticalStrut(18));
+        dashboard.add(buildAppointmentsCard());
+        dashboard.add(Box.createVerticalStrut(18));
+
+        JPanel secondary = new JPanel(new GridLayout(1, 2, 18, 0));
+        secondary.setName("donorSecondaryWorkspace");
+        secondary.setOpaque(false);
+        secondary.setPreferredSize(new Dimension(0, 310));
+        secondary.setMaximumSize(new Dimension(Integer.MAX_VALUE, 310));
+        secondary.add(buildHistoryCard());
+        secondary.add(buildUrgentCard());
+        dashboard.add(secondary);
+
+        BoundedContentPanel bounded = new BoundedContentPanel(dashboard);
+        JScrollPane portalScroll = new JScrollPane(bounded,
+                JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED,
+                JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
+        portalScroll.setName("donorPortalScroll");
+        portalScroll.setBorder(BorderFactory.createEmptyBorder());
+        portalScroll.getViewport().setBackground(UiTheme.BACKGROUND);
+        portalScroll.getVerticalScrollBar().setUnitIncrement(18);
+        root.add(portalScroll, BorderLayout.CENTER);
         setContentPane(root);
+    }
+
+    private JPanel buildPageHeader() {
+        JPanel header = new JPanel(new BorderLayout(18, 8));
+        header.setOpaque(false);
+        header.setPreferredSize(new Dimension(0, 78));
+        header.setMaximumSize(new Dimension(Integer.MAX_VALUE, 78));
+
+        JPanel copy = new JPanel();
+        copy.setOpaque(false);
+        copy.setLayout(new BoxLayout(copy, BoxLayout.Y_AXIS));
+        copy.add(UiComponents.title("Donor dashboard"));
+        copy.add(Box.createVerticalStrut(4));
+        copy.add(UiComponents.muted(
+                "Your eligibility, appointments, and donation impact."));
+        header.add(copy, BorderLayout.WEST);
+
+        editProfileButton.setName("donorEditProfileButton");
+        editProfileButton.addActionListener(event -> showEditDialog());
+        changePasswordButton.setName("donorChangePasswordButton");
+        changePasswordButton.addActionListener(event -> showPasswordDialog());
+        JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 9, 0));
+        actions.setOpaque(false);
+        actions.add(editProfileButton);
+        actions.add(changePasswordButton);
+        header.add(actions, BorderLayout.EAST);
+
+        notice.setName("portalNotice");
+        notice.setFont(UiTheme.SMALL);
+        notice.setForeground(UiTheme.MUTED);
+        header.add(notice, BorderLayout.SOUTH);
+        return header;
     }
 
     private JPanel buildHeader() {
@@ -172,11 +220,12 @@ public final class DonorPortalFrame extends JFrame {
             }
         };
         bar.setOpaque(false);
-        bar.setPreferredSize(new Dimension(0, 64));
+        bar.setPreferredSize(new Dimension(0, 68));
         bar.setBorder(BorderFactory.createEmptyBorder(0, UiTheme.SPACE_LG,
                 0, UiTheme.SPACE_LG));
 
-        JPanel brand = new JPanel(new BorderLayout(10, 0));
+        JPanel brand = new JPanel(new GridBagLayout());
+        brand.setName("donorBrandPanel");
         brand.setOpaque(false);
         JLabel drop = new JLabel() {
             @Override
@@ -201,7 +250,12 @@ public final class DonorPortalFrame extends JFrame {
             }
         };
         drop.setPreferredSize(new Dimension(26, 26));
-        brand.add(drop, BorderLayout.WEST);
+        GridBagConstraints dropConstraints = new GridBagConstraints();
+        dropConstraints.gridx = 0;
+        dropConstraints.gridy = 0;
+        dropConstraints.anchor = GridBagConstraints.CENTER;
+        dropConstraints.insets = new Insets(0, 0, 0, 10);
+        brand.add(drop, dropConstraints);
         JPanel titles = new JPanel();
         titles.setOpaque(false);
         titles.setLayout(new BoxLayout(titles, BoxLayout.Y_AXIS));
@@ -213,68 +267,113 @@ public final class DonorPortalFrame extends JFrame {
         role.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 9));
         role.setForeground(UiTheme.SIDEBAR_MUTED);
         titles.add(role);
-        brand.add(titles, BorderLayout.CENTER);
+        GridBagConstraints titleConstraints = new GridBagConstraints();
+        titleConstraints.gridx = 1;
+        titleConstraints.gridy = 0;
+        titleConstraints.anchor = GridBagConstraints.WEST;
+        brand.add(titles, titleConstraints);
         bar.add(brand, BorderLayout.WEST);
 
-        JPanel account = new JPanel(new FlowLayout(FlowLayout.RIGHT, 12, 0));
+        JPanel account = new JPanel(new FlowLayout(FlowLayout.RIGHT, 12, 15));
         account.setOpaque(false);
-        JLabel who = new JLabel();
-        who.setName("donorNameLabel");
-        who.setFont(UiTheme.BODY_BOLD);
-        who.setForeground(Color.WHITE);
-        who.setHorizontalAlignment(SwingConstants.RIGHT);
-        account.add(who);
         JButton signOut = UiComponents.signOutButton("Sign out");
+        signOut.setName("donorSignOutButton");
+        signOut.setPreferredSize(new Dimension(104, 38));
+        signOut.setMaximumSize(new Dimension(104, 38));
+        signOut.setHorizontalAlignment(SwingConstants.CENTER);
+        signOut.setVerticalAlignment(SwingConstants.CENTER);
+        signOut.setBorder(BorderFactory.createEmptyBorder());
         signOut.addActionListener(event -> signOut());
         account.add(signOut);
         bar.add(account, BorderLayout.EAST);
         return bar;
     }
 
-    private JPanel buildStatusCard() {
-        JPanel card = UiComponents.card(new BorderLayout(0, 14));
-        card.setPreferredSize(new Dimension(330, 0));
+    private JPanel buildOverviewPanel() {
+        JPanel card = UiComponents.card(new BorderLayout(28, 0));
+        card.setName("donorOverviewPanel");
+        card.setPreferredSize(new Dimension(0, 190));
+        card.setMaximumSize(new Dimension(Integer.MAX_VALUE, 190));
         card.setBorder(BorderFactory.createEmptyBorder(
                 UiTheme.SPACE_LG, UiTheme.SPACE_LG, UiTheme.SPACE_LG,
                 UiTheme.SPACE_LG));
 
-        JPanel header = new JPanel();
-        header.setOpaque(false);
-        header.setLayout(new BoxLayout(header, BoxLayout.Y_AXIS));
-        header.add(UiComponents.heading("Donation status"));
-        header.add(Box.createVerticalStrut(4));
-        header.add(UiComponents.muted(
-                "Computed from your profile and donation history."));
-        card.add(header, BorderLayout.NORTH);
-
-        JPanel center = new JPanel();
-        center.setOpaque(false);
-        center.setLayout(new BoxLayout(center, BoxLayout.Y_AXIS));
+        JPanel status = new JPanel();
+        status.setOpaque(false);
+        status.setLayout(new BoxLayout(status, BoxLayout.Y_AXIS));
+        JLabel eyebrow = new JLabel("DONATION STATUS");
+        eyebrow.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 11));
+        eyebrow.setForeground(UiTheme.MUTED);
+        status.add(eyebrow);
+        status.add(Box.createVerticalStrut(10));
         statusChip.setName("donorStatusChip");
         statusChip.setOpaque(false);
         statusChip.setHorizontalAlignment(SwingConstants.CENTER);
-        statusChip.setPreferredSize(new Dimension(290, 40));
-        statusChip.setMaximumSize(new Dimension(290, 40));
-        statusChip.setAlignmentX(CENTER_ALIGNMENT);
+        statusChip.setPreferredSize(new Dimension(170, 36));
+        statusChip.setMaximumSize(new Dimension(170, 36));
+        statusChip.setAlignmentX(LEFT_ALIGNMENT);
+        donorGreeting.setName("donorGreetingLabel");
+        donorGreeting.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 17));
+        donorGreeting.setForeground(UiTheme.NAVY);
+        donorGreeting.setAlignmentX(LEFT_ALIGNMENT);
+        JPanel identity = new JPanel();
+        identity.setLayout(new BoxLayout(identity, BoxLayout.Y_AXIS));
+        identity.setName("donorStatusIdentityRow");
+        identity.setOpaque(false);
+        identity.setAlignmentX(LEFT_ALIGNMENT);
+        identity.setPreferredSize(new Dimension(300, 66));
+        identity.setMaximumSize(new Dimension(300, 66));
+        identity.add(donorGreeting);
+        identity.add(Box.createVerticalStrut(7));
+        identity.add(statusChip);
         statusReason.setName("donorStatusReason");
         statusReason.setFont(UiTheme.BODY);
         statusReason.setForeground(UiTheme.NAVY);
-        statusReason.setHorizontalAlignment(SwingConstants.CENTER);
+        statusReason.setHorizontalAlignment(SwingConstants.LEFT);
         statusSummary.setName("donorStatusSummary");
         statusSummary.setFont(UiTheme.SMALL);
         statusSummary.setForeground(UiTheme.MUTED);
-        statusSummary.setHorizontalAlignment(SwingConstants.CENTER);
-        center.add(statusChip);
-        center.add(Box.createVerticalStrut(12));
-        center.add(statusReason);
-        center.add(Box.createVerticalStrut(10));
-        center.add(statusSummary);
-        card.add(center, BorderLayout.CENTER);
+        statusSummary.setHorizontalAlignment(SwingConstants.LEFT);
+        status.add(identity);
+        status.add(Box.createVerticalStrut(10));
+        status.add(statusReason);
+        status.add(Box.createVerticalStrut(6));
+        status.add(statusSummary);
+        card.add(status, BorderLayout.CENTER);
+
+        JPanel facts = new JPanel(new GridLayout(1, 3));
+        facts.setName("donorOverviewFacts");
+        facts.setOpaque(false);
+        facts.setPreferredSize(new Dimension(570, 0));
+        facts.add(overviewFact("Blood type", overviewBloodType));
+        facts.add(overviewFact("Last donation", overviewLastDonation));
+        facts.add(overviewFact("Total donations", overviewDonationCount));
+        card.add(facts, BorderLayout.EAST);
         return card;
+    }
+
+    private static JPanel overviewFact(String labelText, JLabel value) {
+        JPanel fact = new JPanel();
+        fact.setOpaque(false);
+        fact.setLayout(new BoxLayout(fact, BoxLayout.Y_AXIS));
+        fact.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createMatteBorder(0, 1, 0, 0, UiTheme.BORDER),
+                BorderFactory.createEmptyBorder(30, 22, 20, 12)));
+        JLabel label = new JLabel(labelText);
+        label.setFont(UiTheme.SMALL);
+        label.setForeground(UiTheme.MUTED);
+        value.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 22));
+        value.setForeground(UiTheme.NAVY);
+        fact.add(label);
+        fact.add(Box.createVerticalStrut(8));
+        fact.add(value);
+        return fact;
     }
 
     private JPanel buildHistoryCard() {
         JPanel card = UiComponents.card(new BorderLayout(0, 14));
+        card.setName("donorHistoryPanel");
+        card.setPreferredSize(new Dimension(0, 310));
         card.setBorder(BorderFactory.createEmptyBorder(
                 UiTheme.SPACE_LG, UiTheme.SPACE_LG, UiTheme.SPACE_LG,
                 UiTheme.SPACE_LG));
@@ -292,74 +391,76 @@ public final class DonorPortalFrame extends JFrame {
         table.getColumnModel().getColumn(3)
                 .setCellRenderer(UiComponents.statusRenderer());
         JScrollPane scroll = UiComponents.tableScroll(table);
+        scroll.setPreferredSize(new Dimension(0, 230));
         card.add(scroll, BorderLayout.CENTER);
-
-        JPanel footer = new JPanel(new BorderLayout(0, 10));
-        footer.setOpaque(false);
-        notice.setName("portalNotice");
-        notice.setFont(UiTheme.SMALL);
-        notice.setForeground(UiTheme.MUTED);
-        notice.setHorizontalAlignment(SwingConstants.LEFT);
-        editProfileButton.setName("donorEditProfileButton");
-        editProfileButton.addActionListener(event -> showEditDialog());
-        changePasswordButton.setName("donorChangePasswordButton");
-        changePasswordButton.addActionListener(event -> showPasswordDialog());
-        JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 9, 0));
-        actions.setOpaque(false);
-        actions.add(editProfileButton);
-        actions.add(changePasswordButton);
-        footer.add(notice, BorderLayout.NORTH);
-        footer.add(actions, BorderLayout.SOUTH);
-        card.add(footer, BorderLayout.SOUTH);
         return card;
     }
 
     private JPanel buildUrgentCard() {
         JPanel card = UiComponents.card(new BorderLayout(0, 14));
-        card.setPreferredSize(new Dimension(330, 0));
+        card.setName("donorUrgentPanel");
+        card.setPreferredSize(new Dimension(0, 310));
         card.setBorder(BorderFactory.createEmptyBorder(
                 UiTheme.SPACE_LG, UiTheme.SPACE_LG, UiTheme.SPACE_LG,
                 UiTheme.SPACE_LG));
         JPanel header = new JPanel(new BorderLayout());
         header.setOpaque(false);
         header.add(UiComponents.heading("Urgent needs"), BorderLayout.WEST);
+
+        volunteerButton.setName("donorVolunteerButton");
+        volunteerButton.setEnabled(false);
+        volunteerButton.setPreferredSize(new Dimension(110, 38));
+        volunteerButton.addActionListener(event -> openBookDialog(selectedUrgent()));
+        header.add(volunteerButton, BorderLayout.EAST);
         card.add(header, BorderLayout.NORTH);
 
         urgentTable.setName("donorUrgentTable");
         UiComponents.configureTable(urgentTable);
         urgentTable.getColumnModel().getColumn(1)
                 .setCellRenderer(UiComponents.statusRenderer());
+        urgentTable.getSelectionModel().addListSelectionListener(event -> {
+            if (!event.getValueIsAdjusting()) {
+                updateVolunteerAvailability();
+            }
+        });
         JScrollPane scroll = UiComponents.tableScroll(urgentTable);
-        scroll.setPreferredSize(new Dimension(300, 150));
+        scroll.setPreferredSize(new Dimension(0, 230));
         card.add(scroll, BorderLayout.CENTER);
-
-        volunteerButton.setName("donorVolunteerButton");
-        volunteerButton.setEnabled(false);
-        volunteerButton.addActionListener(event -> openBookDialog(selectedUrgent()));
-        JPanel footer = new JPanel(new BorderLayout(0, 8));
-        footer.setOpaque(false);
-        JLabel hint = UiComponents.muted(
-                "Requests your blood type can support.");
-        hint.setHorizontalAlignment(SwingConstants.LEFT);
-        footer.add(hint, BorderLayout.NORTH);
-        footer.add(volunteerButton, BorderLayout.SOUTH);
-        card.add(footer, BorderLayout.SOUTH);
         return card;
     }
 
     private JPanel buildAppointmentsCard() {
         JPanel card = UiComponents.card(new BorderLayout(0, 14));
+        card.setName("donorAppointmentsPanel");
+        card.setPreferredSize(new Dimension(0, 292));
+        card.setMaximumSize(new Dimension(Integer.MAX_VALUE, 292));
         card.setBorder(BorderFactory.createEmptyBorder(
                 UiTheme.SPACE_LG, UiTheme.SPACE_LG, UiTheme.SPACE_LG,
                 UiTheme.SPACE_LG));
         JPanel header = new JPanel(new BorderLayout());
         header.setOpaque(false);
-        header.add(UiComponents.heading("My appointments"), BorderLayout.WEST);
+        JPanel heading = new JPanel();
+        heading.setOpaque(false);
+        heading.setLayout(new BoxLayout(heading, BoxLayout.X_AXIS));
+        heading.add(UiComponents.heading("My appointments"));
         JLabel count = new JLabel(" ");
         count.setName("donorAppointmentCount");
         count.setFont(UiTheme.SMALL);
         count.setForeground(UiTheme.MUTED);
-        header.add(count, BorderLayout.EAST);
+        heading.add(Box.createHorizontalStrut(12));
+        heading.add(count);
+        header.add(heading, BorderLayout.WEST);
+
+        bookButton.setName("donorBookButton");
+        bookButton.addActionListener(event -> openBookDialog(null));
+        cancelButton.setName("donorCancelButton");
+        cancelButton.setEnabled(false);
+        cancelButton.addActionListener(event -> cancelSelected());
+        JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 9, 0));
+        actions.setOpaque(false);
+        actions.add(cancelButton);
+        actions.add(bookButton);
+        header.add(actions, BorderLayout.EAST);
         card.add(header, BorderLayout.NORTH);
 
         appointmentsTable.setName("donorAppointmentsTable");
@@ -383,46 +484,30 @@ public final class DonorPortalFrame extends JFrame {
                     && appointmentsTable.getSelectedRow() >= 0);
         });
         JScrollPane scroll = UiComponents.tableScroll(appointmentsTable);
-        scroll.setPreferredSize(new Dimension(0, 150));
+        scroll.setPreferredSize(new Dimension(0, 220));
         card.add(scroll, BorderLayout.CENTER);
-
-        bookButton.setName("donorBookButton");
-        bookButton.addActionListener(event -> openBookDialog(null));
-        cancelButton.setName("donorCancelButton");
-        cancelButton.setEnabled(false);
-        cancelButton.addActionListener(event -> cancelSelected());
-        JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 9, 0));
-        actions.setOpaque(false);
-        actions.add(cancelButton);
-        actions.add(bookButton);
-        JPanel footer = new JPanel(new BorderLayout(0, 8));
-        footer.setOpaque(false);
-        JLabel hint = UiComponents.muted(
-                "Book a slot at your hospital, then donate on the day.");
-        hint.setHorizontalAlignment(SwingConstants.LEFT);
-        footer.add(hint, BorderLayout.NORTH);
-        footer.add(actions, BorderLayout.SOUTH);
-        card.add(footer, BorderLayout.SOUTH);
         return card;
     }
 
     private void refreshData() {
-        JLabel who = findLabel("donorNameLabel");
-        if (who != null) {
-            who.setText(account.getUsername());
-        }
         Donor donor = findDonor(account.getDonorId());
         if (donor == null) {
+            donorGreeting.setText("Hi");
             statusChip.setChip("PROFILE REMOVED", UiTheme.DANGER_LIGHT,
                     UiTheme.DANGER);
             statusReason.setText("Your donor profile was removed by the administrator.");
             statusSummary.setText(" ");
+            overviewBloodType.setText("—");
+            overviewLastDonation.setText("—");
+            overviewDonationCount.setText("0");
             donationCount.setText("0 donation(s)");
             editProfileButton.setEnabled(false);
             refreshTable();
             refreshAppointments(donor);
+            refreshUrgent(null);
             return;
         }
+        donorGreeting.setText("Hi, " + firstName(donor.getName()));
         editProfileButton.setEnabled(true);
         refreshStatus(donor);
         refreshTable();
@@ -475,12 +560,21 @@ public final class DonorPortalFrame extends JFrame {
             urgentModel.addRow(new Object[]{
                     request.getId(),
                     request.getKind(),
-                    DashboardPanel.displayType(request.getBloodType()),
-                    request.getQuantity(),
+                    DashboardPanel.displayType(request.getBloodType()) + " · "
+                            + request.getQuantity() + " unit(s)",
                     request.getRequestDate().format(DATE)
             });
         }
-        volunteerButton.setEnabled(donor != null && !needs.isEmpty()
+        if (!needs.isEmpty()) {
+            urgentTable.setRowSelectionInterval(0, 0);
+        }
+        updateVolunteerAvailability();
+    }
+
+    private void updateVolunteerAvailability() {
+        Donor donor = findDonor(account.getDonorId());
+        volunteerButton.setEnabled(donor != null
+                && urgentTable.getSelectedRow() >= 0
                 && !controller.donorHasActiveAppointment(account.getDonorId()));
     }
 
@@ -730,13 +824,16 @@ public final class DonorPortalFrame extends JFrame {
             background = UiTheme.DANGER_LIGHT;
         }
         statusChip.setChip(label, background, foreground);
-        statusReason.setText(result.message());
-        String last = donor.getExternalLastDonationDate() == null
-                ? "—" : donor.getExternalLastDonationDate().format(DATE);
-        statusSummary.setText("<html><div style='text-align:center'>"
-                + "Age " + donor.getAge() + " · " + donor.getWeightKg() + " kg · "
-                + DashboardPanel.displayType(donor.getBloodType())
-                + "<br>Last donation: " + last + "</div></html>");
+        statusReason.setText("<html>" + escape(result.message()) + "</html>");
+        statusReason.setToolTipText(result.message());
+        LocalDate effectiveLast = effectiveLastDonation(donor);
+        String last = effectiveLast == null ? "—" : effectiveLast.format(DATE);
+        String bloodType = DashboardPanel.displayType(donor.getBloodType());
+        statusSummary.setText("<html>Age " + donor.getAge() + " · "
+                + donor.getWeightKg() + " kg · Last donation: " + last
+                + "</html>");
+        overviewBloodType.setText(bloodType);
+        overviewLastDonation.setText(last);
     }
 
     private void refreshTable() {
@@ -753,6 +850,7 @@ public final class DonorPortalFrame extends JFrame {
             });
         }
         donationCount.setText(model.getRowCount() + " donation(s)");
+        overviewDonationCount.setText(Integer.toString(model.getRowCount()));
     }
 
     private Donor findDonor(String donorId) {
@@ -1020,6 +1118,12 @@ public final class DonorPortalFrame extends JFrame {
     private static String escape(String text) {
         return text == null ? "" : text.replace("&", "&amp;")
                 .replace("<", "&lt;").replace(">", "&gt;");
+    }
+
+    private static String firstName(String fullName) {
+        String trimmed = fullName == null ? "" : fullName.trim();
+        int space = trimmed.indexOf(' ');
+        return space < 0 ? trimmed : trimmed.substring(0, space);
     }
 
     private static void addFormRow(JPanel form, int row, String label,

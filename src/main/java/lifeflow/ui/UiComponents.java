@@ -88,10 +88,11 @@ public final class UiComponents {
     public static JButton navButton(String text) {
         ModernButton button = new ModernButton(text, UiTheme.SIDEBAR,
                 UiTheme.SIDEBAR_TEXT, UiTheme.SIDEBAR_HOVER);
+        button.putClientProperty("navigation", true);
         button.setHorizontalAlignment(SwingConstants.LEFT);
-        button.setBorder(new EmptyBorder(0, 10, 0, 10));
-        button.setPreferredSize(new Dimension(244, 42));
-        button.setMaximumSize(new Dimension(Integer.MAX_VALUE, 42));
+        button.setBorder(new EmptyBorder(0, 12, 0, 12));
+        button.setPreferredSize(new Dimension(200, 38));
+        button.setMaximumSize(new Dimension(Integer.MAX_VALUE, 38));
         return button;
     }
 
@@ -107,6 +108,7 @@ public final class UiComponents {
 
     public static void setNavActive(JButton button, boolean active) {
         button.putClientProperty("navActive", active);
+        button.putClientProperty("activeIndicatorWidth", active ? 3 : 0);
         button.setForeground(active ? Color.WHITE : UiTheme.SIDEBAR_TEXT);
         button.repaint();
     }
@@ -293,8 +295,12 @@ public final class UiComponents {
             copy.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
                     RenderingHints.VALUE_ANTIALIAS_ON);
             Color color = getModel().isRollover() ? hover : fill;
-            if (Boolean.TRUE.equals(getClientProperty("navActive"))) {
-                color = UiTheme.CORAL;
+            boolean navigation = Boolean.TRUE.equals(
+                    getClientProperty("navigation"));
+            boolean navigationActive = navigation && Boolean.TRUE.equals(
+                    getClientProperty("navActive"));
+            if (navigationActive) {
+                color = UiTheme.SIDEBAR_SELECTED;
             }
             if (!isEnabled()) {
                 color = new Color(0xE3E7EF);
@@ -302,7 +308,8 @@ public final class UiComponents {
             if (getModel().isPressed()) {
                 color = color.darker();
             }
-            boolean solid = !Boolean.TRUE.equals(getClientProperty("outlined"));
+            boolean solid = !navigation
+                    && !Boolean.TRUE.equals(getClientProperty("outlined"));
             if (solid && isEnabled()) {
                 copy.setColor(UiTheme.SHADOW);
                 copy.fillRoundRect(0, 2, getWidth(), getHeight() - 2, 12, 12);
@@ -313,7 +320,13 @@ public final class UiComponents {
             } else {
                 copy.setColor(color);
             }
-            copy.fillRoundRect(0, 0, getWidth(), getHeight(), 12, 12);
+            int radius = navigation ? 8 : 12;
+            copy.fillRoundRect(0, 0, getWidth(), getHeight(), radius, radius);
+            if (navigationActive) {
+                copy.setColor(UiTheme.CORAL);
+                copy.fillRoundRect(0, 7, 3, Math.max(3, getHeight() - 14),
+                        3, 3);
+            }
             if (Boolean.TRUE.equals(getClientProperty("outlined"))) {
                 copy.setColor(UiTheme.BORDER);
                 copy.setStroke(new BasicStroke(1f));

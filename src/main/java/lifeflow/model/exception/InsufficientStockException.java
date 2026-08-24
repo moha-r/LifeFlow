@@ -4,6 +4,8 @@ import lifeflow.model.BloodType;
 
 /** Thrown when available blood stock cannot fulfill a request in full. */
 public class InsufficientStockException extends LifeFlowException {
+    private static final long serialVersionUID = 1L;
+
     private final BloodType bloodType;
     private final int requested;
     private final int available;

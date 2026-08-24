@@ -2,6 +2,8 @@ package lifeflow.model.exception;
 
 /** Thrown when a referenced entity cannot be found by its ID. */
 public class EntityNotFoundException extends LifeFlowException {
+    private static final long serialVersionUID = 1L;
+
     private final String entityType;
 
     /**

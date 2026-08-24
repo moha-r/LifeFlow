@@ -2,6 +2,8 @@ package lifeflow;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.nio.file.Files;
@@ -10,6 +12,8 @@ import java.util.ArrayList;
 import java.util.List;
 import javax.swing.JButton;
 import javax.swing.JLabel;
+import javax.swing.JPanel;
+import javax.swing.JScrollPane;
 import javax.swing.JTable;
 import javax.swing.SwingUtilities;
 import lifeflow.model.AppointmentStatus;
@@ -32,7 +36,50 @@ import lifeflow.ui.DonorPortalFrame;
 import org.junit.jupiter.api.Test;
 
 final class DonorPortalUiTest {
-    private static final LocalDate TODAY = LocalDate.of(2026, 8, 20);
+    private static final LocalDate TODAY = LocalDate.now();
+
+    @Test
+    void portalUsesBoundedScrollableActionFirstLayout() throws Exception {
+        Donor donor = donor("D1", "Sara Ali", 25, 62, null);
+        DonorAccount account = account("DA1", "D1");
+        DonorPortalFrame frame = frame(state(donor, new ArrayList<>()), account);
+
+        JScrollPane scroll = (JScrollPane) findIn(frame, "donorPortalScroll");
+        JPanel content = (JPanel) findIn(frame, "donorPortalContent");
+        JPanel overview = (JPanel) findIn(frame, "donorOverviewPanel");
+        JPanel appointments = (JPanel) findIn(frame, "donorAppointmentsPanel");
+        JPanel lower = (JPanel) findIn(frame, "donorSecondaryWorkspace");
+        JPanel brand = (JPanel) findIn(frame, "donorBrandPanel");
+        JPanel identity = (JPanel) findIn(frame, "donorStatusIdentityRow");
+        JButton signOut = findButton(frame, "donorSignOutButton");
+        JLabel greeting = findLabel(frame, "donorGreetingLabel");
+
+        assertNotNull(scroll);
+        assertEquals(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED,
+                scroll.getVerticalScrollBarPolicy());
+        assertNotNull(content);
+        assertTrue(content.getPreferredSize().width <= 1320);
+        assertNotNull(overview);
+        assertTrue(overview.getPreferredSize().height <= 190);
+        assertNotNull(appointments);
+        assertNotNull(lower);
+        assertNotNull(brand);
+        assertTrue(brand.getLayout() instanceof java.awt.GridBagLayout);
+        assertNotNull(identity);
+        assertTrue(identity.getLayout() instanceof javax.swing.BoxLayout);
+        assertSame(greeting, identity.getComponent(0));
+        assertSame(findLabel(frame, "donorStatusChip"), identity.getComponent(2));
+        assertNotNull(signOut);
+        assertTrue(signOut.getPreferredSize().width <= 120);
+        assertEquals(javax.swing.SwingConstants.CENTER,
+                signOut.getHorizontalAlignment());
+        assertNotNull(greeting);
+        assertEquals("Hi, Sara", greeting.getText());
+        assertEquals(javax.swing.SwingConstants.CENTER,
+                findLabel(frame, "donorStatusChip").getHorizontalAlignment());
+        assertEquals(4, findTable(frame, "donorUrgentTable").getColumnCount());
+        frame.dispose();
+    }
 
     @Test
     void eligibleDonorSeesEligibleChipAndEmptyHistory() throws Exception {
@@ -66,6 +113,8 @@ final class DonorPortalUiTest {
         assertEquals(1, donations.getRowCount());
         assertEquals("U000001", donations.getValueAt(0, 0));
         assertEquals("O+", donations.getValueAt(0, 2));
+        assertFalse(findLabel(frame, "donorStatusSummary").getText()
+                .contains("Last donation: —"));
         frame.dispose();
     }
 

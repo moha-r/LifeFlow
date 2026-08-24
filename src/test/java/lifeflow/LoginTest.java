@@ -8,7 +8,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.nio.file.Files;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
+import javax.swing.JComponent;
+import javax.swing.JLabel;
 import javax.swing.SwingUtilities;
 import lifeflow.model.Hospital;
 import lifeflow.persistence.JsonDonorStore;
@@ -23,6 +26,63 @@ import lifeflow.ui.LoginResult;
 import org.junit.jupiter.api.Test;
 
 final class LoginTest {
+    @Test
+    void registrationControlsUseComfortableTouchTargets() throws Exception {
+        Session session = emptySession();
+        LoginPanel[] panel = new LoginPanel[1];
+        SwingUtilities.invokeAndWait(() -> panel[0] = new LoginPanel(
+                session.hospitalRegistry, session.donorRegistry,
+                session.signupService, ignored -> { }));
+
+        SwingUtilities.invokeAndWait(() -> {
+            panel[0].setDonorRole();
+            click(panel[0], "createAccountLink");
+            panel[0].setSize(panel[0].getPreferredSize());
+            layoutTree(panel[0]);
+        });
+
+        assertTrue(panel[0].getPreferredSize().width >= 960);
+        assertTrue(panel[0].getPreferredSize().height >= 700);
+        for (String name : List.of("donorName", "donorAge", "donorWeight",
+                "donorBloodType", "donorUsername", "donorPassword",
+                "donorConfirm")) {
+            JComponent field = (JComponent) findIn(panel[0], name);
+            assertNotNull(field, name);
+            assertTrue(field.getPreferredSize().height >= 48, name);
+            assertTrue(field.getHeight() >= 44, name + " actual height");
+        }
+    }
+
+    @Test
+    void donorMeasurementsHaveSeparateHighContrastLabels() throws Exception {
+        Session session = emptySession();
+        LoginPanel[] panel = new LoginPanel[1];
+        SwingUtilities.invokeAndWait(() -> panel[0] = new LoginPanel(
+                session.hospitalRegistry, session.donorRegistry,
+                session.signupService, ignored -> { }));
+
+        JLabel ageLabel = (JLabel) findIn(panel[0], "donorAgeLabel");
+        JLabel weightLabel = (JLabel) findIn(panel[0], "donorWeightLabel");
+        assertNotNull(ageLabel);
+        assertNotNull(weightLabel);
+        assertEquals("AGE", ageLabel.getText());
+        assertEquals("WEIGHT (KG)", weightLabel.getText());
+        assertTrue(contrastAgainstWhite(ageLabel.getForeground()) >= 7.0);
+        assertTrue(ageLabel.getFont().getSize() >= 12);
+    }
+
+    @Test
+    void brandRailOmitsLegacyTagline() throws Exception {
+        Session session = emptySession();
+        LoginPanel[] panel = new LoginPanel[1];
+        SwingUtilities.invokeAndWait(() -> panel[0] = new LoginPanel(
+                session.hospitalRegistry, session.donorRegistry,
+                session.signupService, ignored -> { }));
+
+        assertFalse(allLabelText(panel[0]).contains("Blood Donation"));
+        assertFalse(allLabelText(panel[0]).contains("Emergency Matching"));
+    }
+
     @Test
     void adminCredentialsAreAcceptedExactly() {
         assertTrue(AdminAuth.authenticate("admin", "admin123"));
@@ -194,6 +254,49 @@ final class LoginTest {
             }
         }
         return null;
+    }
+
+    private static String allLabelText(java.awt.Component component) {
+        StringBuilder text = new StringBuilder();
+        collectLabelText(component, text);
+        return text.toString();
+    }
+
+    private static void collectLabelText(java.awt.Component component,
+                                         StringBuilder text) {
+        if (component instanceof JLabel label) {
+            text.append(label.getText()).append('\n');
+        }
+        if (component instanceof java.awt.Container container) {
+            for (java.awt.Component child : container.getComponents()) {
+                collectLabelText(child, text);
+            }
+        }
+    }
+
+    private static void layoutTree(java.awt.Container container) {
+        container.doLayout();
+        for (java.awt.Component child : container.getComponents()) {
+            if (child instanceof java.awt.Container nested) {
+                layoutTree(nested);
+            }
+        }
+    }
+
+    private static double contrastAgainstWhite(java.awt.Color color) {
+        return 1.05 / (relativeLuminance(color) + 0.05);
+    }
+
+    private static double relativeLuminance(java.awt.Color color) {
+        double red = linearChannel(color.getRed() / 255.0);
+        double green = linearChannel(color.getGreen() / 255.0);
+        double blue = linearChannel(color.getBlue() / 255.0);
+        return 0.2126 * red + 0.7152 * green + 0.0722 * blue;
+    }
+
+    private static double linearChannel(double value) {
+        return value <= 0.04045 ? value / 12.92
+                : Math.pow((value + 0.055) / 1.055, 2.4);
     }
 
     private static Session emptySession() throws Exception {

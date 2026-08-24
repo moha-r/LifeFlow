@@ -581,7 +581,7 @@ final class AppointmentBookingTest {
         }
 
         @Override
-        public void close() throws Exception {
+        public void close() {
             try {
                 controller.close();
             } catch (java.io.IOException alreadyClosed) {

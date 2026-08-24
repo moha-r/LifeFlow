@@ -2,6 +2,7 @@ package lifeflow;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.nio.file.Files;
@@ -9,7 +10,10 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import javax.swing.JButton;
+import javax.swing.JComboBox;
 import javax.swing.JLabel;
+import javax.swing.JPanel;
+import javax.swing.JScrollPane;
 import javax.swing.JTable;
 import javax.swing.SwingUtilities;
 import lifeflow.model.AppointmentStatus;
@@ -27,7 +31,53 @@ import lifeflow.ui.HospitalPortalFrame;
 import org.junit.jupiter.api.Test;
 
 final class HospitalAppointmentsUiTest {
-    private static final LocalDate TODAY = LocalDate.of(2026, 8, 20);
+    private static final LocalDate TODAY = LocalDate.now();
+
+    @Test
+    void hospitalPortalUsesBoundedTaskFirstLayout() throws Exception {
+        Hospital hospital = new Hospital("H1", "City Hospital", "city",
+                "pass123", TODAY);
+        HospitalPortalFrame frame = frame(state(hospital, List.of()), hospital);
+
+        JScrollPane scroll = (JScrollPane) findIn(frame, "hospitalPortalScroll");
+        JPanel content = (JPanel) findIn(frame, "hospitalPortalContent");
+        JPanel overview = (JPanel) findIn(frame, "hospitalOverviewPanel");
+        JPanel workspace = (JPanel) findIn(frame, "hospitalRequestWorkspace");
+        JPanel composer = (JPanel) findIn(frame, "hospitalRequestComposer");
+        JPanel requests = (JPanel) findIn(frame, "hospitalRequestsPanel");
+        JPanel appointments = (JPanel) findIn(frame, "hospitalAppointmentsPanel");
+        JPanel brand = (JPanel) findIn(frame, "hospitalBrandPanel");
+        JButton signOut = findButton(frame, "hospitalSignOutButton");
+
+        assertNotNull(scroll);
+        assertEquals(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED,
+                scroll.getVerticalScrollBarPolicy());
+        assertEquals(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER,
+                scroll.getHorizontalScrollBarPolicy());
+        assertNotNull(content);
+        assertTrue(content.getPreferredSize().width <= 1280);
+        assertNotNull(overview);
+        assertTrue(overview.getPreferredSize().height <= 150);
+        assertNotNull(workspace);
+        assertTrue(workspace.getLayout() instanceof java.awt.BorderLayout);
+        assertNotNull(composer);
+        assertNotNull(requests);
+        assertNotNull(appointments);
+        assertNotNull(brand);
+        assertTrue(brand.getLayout() instanceof java.awt.GridBagLayout);
+        assertNotNull(signOut);
+        assertTrue(signOut.getPreferredSize().width <= 120);
+        assertEquals(javax.swing.SwingConstants.CENTER,
+                signOut.getHorizontalAlignment());
+
+        JComboBox<?> bloodType = (JComboBox<?>) findIn(frame,
+                "hospitalBloodTypePicker");
+        JComboBox<?> requestKind = (JComboBox<?>) findIn(frame,
+                "hospitalRequestKindPicker");
+        assertEquals("A+", renderedText(bloodType, BloodType.A_POS));
+        assertEquals("Emergency", renderedText(requestKind, "EMERGENCY"));
+        frame.dispose();
+    }
 
     @Test
     void hospitalSeesItsAppointmentsAndVolunteers() throws Exception {
@@ -216,6 +266,14 @@ final class HospitalAppointmentsUiTest {
 
     private static JButton findButton(java.awt.Component component, String name) {
         return (JButton) findIn(component, name);
+    }
+
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    private static String renderedText(JComboBox<?> combo, Object value) {
+        javax.swing.ListCellRenderer renderer = combo.getRenderer();
+        java.awt.Component rendered = renderer.getListCellRendererComponent(
+                new javax.swing.JList<>(), value, 0, false, false);
+        return ((JLabel) rendered).getText();
     }
 
     private static java.awt.Component findIn(java.awt.Component component,
