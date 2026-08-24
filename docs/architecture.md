@@ -274,7 +274,8 @@ that can be printed to PDF. Exporters consume a `LifeFlowState` snapshot, so
 report generation does not mutate operational data.
 
 The operational HTML report is not the academic project report required by the
-brief. That submission artifact remains a later deliverable.
+brief. The completed academic report is stored separately at
+`output/pdf/BIT1123_LifeFlow_Project_Report_Group_23.pdf`.
 
 ## Architectural trade-offs and boundaries
 

@@ -55,6 +55,12 @@ Expected artifact:
 target/lifeflow.jar
 ```
 
+The verified submission build is also copied to:
+
+```text
+output/jar/lifeflow.jar
+```
+
 Skipping tests is appropriate only after a successful clean test run has already
 provided evidence for the same source revision.
 
@@ -215,8 +221,9 @@ coverage percentage.
 ### No complete automated desktop journey
 
 UI tests verify component behaviour and layout, but they do not replace a full
-human-run workflow using the packaged application. The final submission still
-needs current screenshots and a rehearsed live demonstration.
+human-run workflow using the packaged application. Current screenshots are
+included in the final report, while the live demonstration still requires team
+rehearsal and delivery.
 
 ### Educational security model
 

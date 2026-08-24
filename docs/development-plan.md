@@ -106,14 +106,24 @@ Implemented capabilities:
 
 Evidence: `ReportExporterTest` and the verified `./mvnw clean test` result.
 
+### 7. Submission artifacts
+
+Completed artifacts:
+
+- the final Group 23 academic report in PDF format;
+- the final 17-slide Group 23 presentation in its original PPTX format; and
+- a verified shaded executable JAR that starts with Java 17 or later.
+
+Evidence: `output/pdf/BIT1123_LifeFlow_Project_Report_Group_23.pdf`,
+`output/presentation/LifeFlow_Presentation_Group_23.pptx`, and
+`output/jar/lifeflow.jar`.
+
 ## Future Roadmap
 
 | Priority | Work item | Why it is not complete | Acceptance criteria | Dependencies |
 |---|---|---|---|---|
-| P0 | Produce the academic project report and PDF. | No current report artifact exists. | Contains all eight required sections, GitHub URL, current UML, sourced SDG analysis, test evidence, screenshots, limitations, and conclusion; every technical claim maps to current documentation. | Approved documentation baseline and team identity data for the private copy. |
-| P0 | Produce the slide deck and PDF. | Old slides were removed because they no longer matched the application. | Supports an approximately 15-minute presentation, includes current screenshots and UML, assigns speaking roles, and follows the same facts as the report. | Stable report outline and current screenshots. |
-| P0 | Rehearse and package the live demonstration. | Automated tests do not prove presentation timing or operator fluency. | `target/lifeflow.jar` runs from a clean temporary data directory; the hospital-to-donor-to-admin scenario completes without manual data repair; every member can perform the assigned section. | Packaged JAR, final demo script, and team roster. |
-| P0 | Assemble private LMS metadata and contribution evidence. | Personal data and team allocation cannot be inferred safely from public Git. | Full name, student ID, class code, programme, NRIC/passport, team leader, contribution summary, and presentation allocation are complete in the private submission only. | Input from every team member. |
+| P0 | Rehearse and deliver the live demonstration. | The executable JAR and screenshots exist, but automated tests cannot prove presentation timing or operator fluency. | `output/jar/lifeflow.jar` runs from a clean temporary data directory; the hospital-to-donor-to-admin scenario completes without manual data repair; every member can perform the assigned section. | Final presentation, team speaking allocation, and rehearsal. |
+| P0 | Complete LMS submission checks. | Repository artifacts do not prove that the appointed representative uploaded the correct files. | Member details and contribution entries are confirmed, the deck is exported to PDF if the LMS requires that format, the final files are uploaded, and the submission receipt is retained. | Team confirmation and LMS access. |
 | P1 | Confirm the lecturer's interpretation of setters and rubric arithmetic. | The design uses intent-specific mutation rather than conventional `setX`; published rubric weights total 105. | Lecturer guidance is recorded; no code or score interpretation is changed based on assumption. | Lecturer response. |
 | P1 | Improve local credential security. | Admin credentials are fixed and account passwords are plain text. | Passwords use salted hashes, admin authentication is configurable, old accounts migrate safely, authentication tests cover both migration and new credentials, and no secret appears in committed documentation. | Separate security design and data-migration plan. |
 | P1 | Add measurable test coverage and a desktop smoke test. | No coverage plugin is configured and current Swing tests are primarily component/behaviour tests. | JaCoCo reports are reproducible, an agreed threshold is documented, and one automated or scripted smoke path covers login through persisted result. | Agreement on coverage threshold and GUI automation approach. |
@@ -141,17 +151,18 @@ Future work must follow these rules to keep documentation aligned:
    the same logical change when their facts change.
 8. Do not label roadmap items as implemented before code and verification exist.
 
-## Completion order for submission work
+## Remaining submission order
 
-1. Approve this technical documentation baseline.
-2. Collect team-only identity and contribution information.
-3. Research and write SDG/problem material.
-4. Build the report from the eight required headings.
-5. Capture current application screenshots from a clean run.
-6. Review and export the report PDF.
-7. Build slides and a timed speaking script from the approved report.
-8. Package the JAR and rehearse the live demo.
-9. Perform a final cross-artifact fact check before LMS upload.
+1. Confirm that the member details and contribution descriptions in the final
+   report are accepted by all five members.
+2. Download and open the committed PDF, PPTX, and JAR from GitHub to verify the
+   actual uploaded files.
+3. Export the presentation to PDF only if the lecturer or LMS requires a slide
+   PDF in addition to the original PPTX.
+4. Rehearse the live demonstration and keep the role allocation within the
+   approximately 15-minute group limit.
+5. Perform a final cross-artifact fact check, then let the appointed
+   representative upload the required files and retain the LMS receipt.
 
 Related documents:
 

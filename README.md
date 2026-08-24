@@ -50,7 +50,17 @@ The project demonstrates the required OOP concepts through working behavior:
 - **GUI:** Swing frames, panels, tables, dialogs, card layouts, and shared UI
   components provide clear visual output.
 
-## Documentation
+## Final deliverables
+
+- [Group 23 project report (PDF)](output/pdf/BIT1123_LifeFlow_Project_Report_Group_23.pdf)
+- [Group 23 presentation (PPTX)](output/presentation/LifeFlow_Presentation_Group_23.pptx)
+- [Runnable application (JAR)](output/jar/lifeflow.jar)
+
+GitHub stores the presentation in its original PowerPoint format. Download the
+PPTX to present or edit it in Microsoft PowerPoint. The JAR is a shaded,
+self-contained build for Java 17 or later.
+
+## Technical documentation
 
 - [Requirements traceability](docs/requirements-traceability.md)
 - [Gap analysis](docs/gap-analysis.md)
@@ -86,6 +96,13 @@ java -jar target/lifeflow.jar
 
 The clean test suite currently contains 229 passing tests with zero failures,
 errors, or skipped tests.
+
+A verified prebuilt JAR is available at `output/jar/lifeflow.jar` and can be
+started directly:
+
+```bash
+java -jar output/jar/lifeflow.jar
+```
 
 Default administrator credentials:
 
@@ -126,7 +143,9 @@ src/main/java/lifeflow/
 
 src/test/java/lifeflow/    JUnit 5 and legacy regression coverage
 data/demo/                 Fictional demonstration data
-output/                    Generated submission artifacts
+output/pdf/                Final Group 23 project report
+output/presentation/       Final Group 23 presentation deck
+output/jar/                Verified runnable application JAR
 ```
 
 ## Local storage
@@ -146,8 +165,8 @@ files, atomic replacement when supported, automatic backups, recovery, and
 Version 1 to Version 2 migration. Account registries also use atomic JSON file
 replacement.
 
-## Submission privacy
+## Submission note
 
-The private LMS submission must include every member's full name, student ID,
-class code, programme, and NRIC/passport number. Government identifiers must
-not be committed to this public repository.
+The committed Group 23 report contains the member details required by the
+official brief. Treat it as a submission artifact and confirm the team's
+permission before redistributing it outside the course submission process.
