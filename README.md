@@ -142,7 +142,6 @@ src/main/java/lifeflow/
 └── ui/           Login, admin workspace, donor portal, and hospital portal
 
 src/test/java/lifeflow/    JUnit 5 and legacy regression coverage
-data/demo/                 Fictional demonstration data
 output/pdf/                Final Group 23 project report
 output/presentation/       Final Group 23 presentation deck
 output/jar/                Verified runnable application JAR

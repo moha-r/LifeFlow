@@ -1,3 +1,0 @@
-id|kind|requesterName|bloodType|quantity|requestDate|status
-R001|REGULAR|Community Clinic|A_POS|1|2026-08-03|PENDING
-R002|EMERGENCY|City Hospital ER|O_NEG|2|2026-08-03|PENDING
