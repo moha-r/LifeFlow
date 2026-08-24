@@ -1,0 +1,48 @@
+digraph Figure3 {
+  graph [rankdir=TB, bgcolor="#F7F9FC", pad="0.3", nodesep="0.65", ranksep="0.62", splines=polyline, fontname="Arial", fontsize=24, labelloc=t, label="Figure 3. BloodRequest inheritance and runtime polymorphism"];
+  node [shape=plain, fontname="Arial", fontsize=18];
+  edge [fontname="Arial", fontsize=15, color="#35668A", fontcolor="#42526E", penwidth=1.8, arrowsize=1.0];
+
+  Identifiable [label=<
+    <TABLE BORDER="1" COLOR="#7C3AED" CELLBORDER="0" CELLSPACING="0" CELLPADDING="10" BGCOLOR="white">
+      <TR><TD BGCOLOR="#EEE8FF"><B>&lt;&lt;interface&gt;&gt; Identifiable</B></TD></TR>
+      <TR><TD>+ getId(): String</TD></TR>
+    </TABLE>
+  >];
+
+  BloodRequest [label=<
+    <TABLE BORDER="1" COLOR="#35668A" CELLBORDER="0" CELLSPACING="0" CELLPADDING="10" BGCOLOR="white">
+      <TR><TD BGCOLOR="#DCEAF5"><B>&lt;&lt;abstract&gt;&gt; BloodRequest</B></TD></TR>
+      <TR><TD ALIGN="LEFT">- id, requesterName, hospitalId<BR ALIGN="LEFT"/>- bloodType, quantity, requestDate, status</TD></TR>
+      <TR><TD ALIGN="LEFT"><I>+ getPriority(): int</I><BR ALIGN="LEFT"/><I>+ getKind(): String</I><BR ALIGN="LEFT"/>+ markFulfilled(): void<BR ALIGN="LEFT"/>+ markCancelled(): void</TD></TR>
+    </TABLE>
+  >];
+
+  Regular [label=<
+    <TABLE BORDER="1" COLOR="#26A17B" CELLBORDER="0" CELLSPACING="0" CELLPADDING="10" BGCOLOR="white">
+      <TR><TD BGCOLOR="#DFF7EF"><B>RegularRequest</B></TD></TR>
+      <TR><TD ALIGN="LEFT">+ getPriority(): int = 1<BR ALIGN="LEFT"/>+ getKind(): String = "REGULAR"</TD></TR>
+    </TABLE>
+  >];
+
+  Emergency [label=<
+    <TABLE BORDER="1" COLOR="#EF476F" CELLBORDER="0" CELLSPACING="0" CELLPADDING="10" BGCOLOR="white">
+      <TR><TD BGCOLOR="#FFE7ED"><B>EmergencyRequest</B></TD></TR>
+      <TR><TD ALIGN="LEFT">+ getPriority(): int = 2<BR ALIGN="LEFT"/>+ getKind(): String = "EMERGENCY"</TD></TR>
+    </TABLE>
+  >];
+
+  Matching [label=<
+    <TABLE BORDER="1" COLOR="#E07A00" CELLBORDER="0" CELLSPACING="0" CELLPADDING="10" BGCOLOR="white">
+      <TR><TD BGCOLOR="#FFF0D9"><B>MatchingService</B></TD></TR>
+      <TR><TD ALIGN="LEFT">ORDER compares List&lt;BloodRequest&gt;<BR ALIGN="LEFT"/>1. getPriority() descending<BR ALIGN="LEFT"/>2. requestDate ascending<BR ALIGN="LEFT"/>3. request ID, case-insensitive</TD></TR>
+    </TABLE>
+  >];
+
+  Identifiable -> BloodRequest [dir=back, style=dashed, arrowtail=empty, arrowhead=none, label="realisation"];
+  BloodRequest -> Regular [dir=back, arrowtail=empty, arrowhead=none, label="generalisation"];
+  BloodRequest -> Emergency [dir=back, arrowtail=empty, arrowhead=none, label="generalisation"];
+  Matching -> BloodRequest [style=dashed, arrowhead=vee, color="#E07A00", fontcolor="#B35F00", label="calls getPriority() through\na BloodRequest reference"];
+
+  {rank=same; Regular; Emergency; Matching}
+}

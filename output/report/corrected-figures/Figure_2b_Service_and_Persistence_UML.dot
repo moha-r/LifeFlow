@@ -1,0 +1,103 @@
+digraph Figure2b {
+  graph [rankdir=TB, bgcolor="#F7F9FC", pad="0.28", nodesep="0.48", ranksep="0.58", splines=polyline, fontname="Arial", fontsize=24, labelloc=t, label="Figure 2(b). LifeFlow services and persistence"];
+  node [shape=plain, fontname="Arial", fontsize=18];
+  edge [fontname="Arial", fontsize=14, color="#5E6C84", fontcolor="#42526E", penwidth=1.5, arrowsize=0.9];
+
+  Controller [label=<
+    <TABLE BORDER="1" COLOR="#35668A" CELLBORDER="0" CELLSPACING="0" CELLPADDING="9" BGCOLOR="white">
+      <TR><TD BGCOLOR="#35668A"><FONT COLOR="white"><B>LifeFlowController</B></FONT></TD></TR>
+      <TR><TD ALIGN="LEFT">- state: LifeFlowState<BR ALIGN="LEFT"/>- store: LifeFlowStore<BR ALIGN="LEFT"/>- clock: Clock<BR ALIGN="LEFT"/>- donationPolicy: DonationPolicy</TD></TR>
+      <TR><TD ALIGN="LEFT">+ processNextRequest(date): MatchResult<BR ALIGN="LEFT"/>+ processSpecificRequest(id, date, mode): MatchResult<BR ALIGN="LEFT"/>+ bookDonationAppointment(...): DonationAppointment<BR ALIGN="LEFT"/>+ completeDonationAppointment(...): void<BR ALIGN="LEFT"/>+ getStateSnapshot(): LifeFlowState</TD></TR>
+    </TABLE>
+  >];
+
+  State [label=<
+    <TABLE BORDER="1" COLOR="#14213D" CELLBORDER="0" CELLSPACING="0" CELLPADDING="9" BGCOLOR="white">
+      <TR><TD BGCOLOR="#14213D"><FONT COLOR="white"><B>LifeFlowState</B></FONT></TD></TR>
+      <TR><TD ALIGN="LEFT">- revision: long<BR ALIGN="LEFT"/>- domain collections and logs</TD></TR>
+      <TR><TD ALIGN="LEFT">+ copy(): LifeFlowState<BR ALIGN="LEFT"/>+ deep-copy collection getters</TD></TR>
+    </TABLE>
+  >];
+
+  Store [label=<
+    <TABLE BORDER="1" COLOR="#7C3AED" CELLBORDER="0" CELLSPACING="0" CELLPADDING="9" BGCOLOR="white">
+      <TR><TD BGCOLOR="#EEE8FF"><B>&lt;&lt;interface&gt;&gt; LifeFlowStore</B></TD></TR>
+      <TR><TD ALIGN="LEFT">+ load(): LifeFlowState<BR ALIGN="LEFT"/>+ save(state): void<BR ALIGN="LEFT"/>+ getStorageInfo(): StorageInfo<BR ALIGN="LEFT"/>+ close(): void</TD></TR>
+    </TABLE>
+  >];
+
+  JsonStore [label=<
+    <TABLE BORDER="1" COLOR="#7C3AED" CELLBORDER="0" CELLSPACING="0" CELLPADDING="9" BGCOLOR="white">
+      <TR><TD BGCOLOR="#EEE8FF"><B>JsonLifeFlowStore</B></TD></TR>
+      <TR><TD ALIGN="LEFT">- dataFile: Path<BR ALIGN="LEFT"/>- backupFile: Path<BR ALIGN="LEFT"/>- previousBackupFile: Path<BR ALIGN="LEFT"/>- lock: FileLock</TD></TR>
+      <TR><TD ALIGN="LEFT">+ load(): LifeFlowState<BR ALIGN="LEFT"/>+ save(state): void<BR ALIGN="LEFT"/>+ restoreLatestBackup(): LifeFlowState<BR ALIGN="LEFT"/>+ close(): void</TD></TR>
+    </TABLE>
+  >];
+
+  Policy [label=<
+    <TABLE BORDER="1" COLOR="#EF476F" CELLBORDER="0" CELLSPACING="0" CELLPADDING="9" BGCOLOR="white">
+      <TR><TD BGCOLOR="#FFE7ED"><B>DonationPolicy</B></TD></TR>
+      <TR><TD ALIGN="LEFT">+ evaluate(donor, proposedDate,<BR ALIGN="LEFT"/>  effectiveLastDate): EligibilityResult<BR ALIGN="LEFT"/>+ calculateExpiry(donationDate): LocalDate</TD></TR>
+    </TABLE>
+  >];
+
+  Eligibility [label=<
+    <TABLE BORDER="1" COLOR="#26A17B" CELLBORDER="0" CELLSPACING="0" CELLPADDING="9" BGCOLOR="white">
+      <TR><TD BGCOLOR="#DFF7EF"><B>&lt;&lt;record&gt;&gt; EligibilityResult</B></TD></TR>
+      <TR><TD ALIGN="LEFT">eligible: boolean<BR ALIGN="LEFT"/>reason: EligibilityReason<BR ALIGN="LEFT"/>lastDonationDate: LocalDate<BR ALIGN="LEFT"/>nextEligibleDate: LocalDate<BR ALIGN="LEFT"/>message: String</TD></TR>
+    </TABLE>
+  >];
+
+  Matching [label=<
+    <TABLE BORDER="1" COLOR="#EF476F" CELLBORDER="0" CELLSPACING="0" CELLPADDING="9" BGCOLOR="white">
+      <TR><TD BGCOLOR="#FFE7ED"><B>MatchingService</B></TD></TR>
+      <TR><TD ALIGN="LEFT">- inventory: BloodInventory<BR ALIGN="LEFT"/>- matchMode: MatchMode</TD></TR>
+      <TR><TD ALIGN="LEFT">+ findNextPending(requests): BloodRequest<BR ALIGN="LEFT"/>+ findNextFulfillable(requests, date): BloodRequest<BR ALIGN="LEFT"/>+ match(request, date, count): ArrayList&lt;BloodUnit&gt;</TD></TR>
+    </TABLE>
+  >];
+
+  Inventory [label=<
+    <TABLE BORDER="1" COLOR="#EF476F" CELLBORDER="0" CELLSPACING="0" CELLPADDING="9" BGCOLOR="white">
+      <TR><TD BGCOLOR="#FFE7ED"><B>BloodInventory</B></TD></TR>
+      <TR><TD ALIGN="LEFT">- units: ArrayList&lt;BloodUnit&gt;</TD></TR>
+      <TR><TD ALIGN="LEFT">+ getCompatibleUnits(type, mode, date):<BR ALIGN="LEFT"/>  ArrayList&lt;BloodUnit&gt;<BR ALIGN="LEFT"/>+ getStockCounts(date):<BR ALIGN="LEFT"/>  HashMap&lt;BloodType, Integer&gt;</TD></TR>
+    </TABLE>
+  >];
+
+  Mode [label=<
+    <TABLE BORDER="1" COLOR="#EF476F" CELLBORDER="0" CELLSPACING="0" CELLPADDING="9" BGCOLOR="white">
+      <TR><TD BGCOLOR="#FFE7ED"><B>&lt;&lt;enumeration&gt;&gt; MatchMode</B></TD></TR>
+      <TR><TD>EXACT<BR/>COMPATIBLE</TD></TR>
+    </TABLE>
+  >];
+
+  Request [label=<
+    <TABLE BORDER="1" COLOR="#26A17B" CELLBORDER="0" CELLSPACING="0" CELLPADDING="9" BGCOLOR="white">
+      <TR><TD BGCOLOR="#DFF7EF"><B>&lt;&lt;abstract&gt;&gt; BloodRequest</B></TD></TR>
+      <TR><TD ALIGN="LEFT"><I>+ getPriority(): int</I><BR ALIGN="LEFT"/><I>+ getKind(): String</I><BR ALIGN="LEFT"/>+ getRequestDate(): LocalDate</TD></TR>
+    </TABLE>
+  >];
+
+  {rank=same; State; Store}
+  {rank=same; Policy; Matching; JsonStore}
+  {rank=same; Eligibility; Inventory}
+  {rank=same; Request; Mode}
+
+  Controller -> State [label="owns 1 snapshot"];
+  Controller -> Store [label="persists through"];
+  Controller -> Policy [label="applies"];
+  Controller -> Matching [style=dashed, arrowhead=vee, label="creates / uses"];
+
+  Store -> JsonStore [dir=back, style=dashed, arrowtail=empty, arrowhead=none, label="realises"];
+  Policy -> Eligibility [style=dashed, arrowhead=vee, label="returns"];
+  Matching -> Inventory [label="uses"];
+  Matching -> Request [style=dashed, arrowhead=vee, label="orders and matches"];
+
+  State -> Store [style=invis, weight=90];
+  State -> Policy [style=invis, weight=60];
+  Policy -> Matching [style=invis, weight=90];
+  Matching -> JsonStore [style=invis, weight=60];
+  Eligibility -> Inventory [style=invis, weight=90];
+  Eligibility -> Request [style=invis, weight=60];
+  Inventory -> Mode [style=invis, weight=60];
+}

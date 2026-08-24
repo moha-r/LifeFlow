@@ -1,0 +1,227 @@
+---
+config:
+  layout: elk
+---
+classDiagram
+    direction TB
+
+    class Identifiable {
+        <<interface>>
+        +getId() String
+    }
+
+    class Repository~T~ {
+        -List~T~ items
+        +findById(String id) T
+        +nextId(String prefix) String
+    }
+
+    class Donor {
+        -String id
+        -String name
+        -int age
+        -double weightKg
+        -BloodType bloodType
+        -LocalDate externalLastDonationDate
+        +updateDetails(...)
+        +getId() String
+        +getBloodType() BloodType
+    }
+
+    class DonorAccount {
+        -String id
+        -String donorId
+        -String username
+        -String password
+        +getId() String
+        +getDonorId() String
+    }
+
+    class Hospital {
+        -String id
+        -String name
+        -String username
+        -String password
+        +getId() String
+        +getName() String
+    }
+
+    class BloodUnit {
+        -String id
+        -String donorId
+        -BloodType bloodType
+        -LocalDate donationDate
+        -LocalDate expiryDate
+        -UnitStatus status
+        +getInventoryState(LocalDate date) InventoryState
+        +markReserved()
+        +markUsed()
+        +markDiscarded()
+    }
+
+    class DonationAppointment {
+        -String id
+        -String donorId
+        -String hospitalId
+        -LocalDate appointmentDate
+        -String linkedRequestId
+        -AppointmentStatus status
+        +isBooked() boolean
+        +isStale(LocalDate today) boolean
+        +markCompleted()
+        +markCancelled()
+    }
+
+    class BloodRequest {
+        <<abstract>>
+        -String id
+        -String requesterName
+        -String hospitalId
+        -BloodType bloodType
+        -int quantity
+        -LocalDate requestDate
+        -RequestStatus status
+        +getPriority()* int
+        +getKind()* String
+        +markFulfilled()
+        +markCancelled()
+    }
+
+    class RegularRequest {
+        +getPriority() int
+        +getKind() String
+    }
+
+    class EmergencyRequest {
+        +getPriority() int
+        +getKind() String
+    }
+
+    class FulfilmentRecord {
+        <<record>>
+        +String requestId
+        +LocalDate processedDate
+        +List~String~ unitIds
+    }
+
+    class LifeFlowState {
+        -long revision
+        -ArrayList~Donor~ donors
+        -ArrayList~BloodUnit~ units
+        -ArrayList~BloodRequest~ requests
+        -ArrayList~FulfilmentRecord~ fulfilments
+        -ArrayList~DonationAppointment~ appointments
+        -ArrayList~String~ logs
+        +copy() LifeFlowState
+        +getDonors() ArrayList~Donor~
+        +getUnits() ArrayList~BloodUnit~
+        +getRequests() ArrayList~BloodRequest~
+    }
+
+    class EligibilityResult {
+        <<record>>
+        +boolean eligible
+        +EligibilityReason reason
+        +LocalDate lastDonationDate
+        +LocalDate nextEligibleDate
+        +String message
+    }
+
+    class DonationPolicy {
+        +evaluate(Donor donor, LocalDate proposed, LocalDate last) EligibilityResult
+        +calculateExpiry(LocalDate donationDate) LocalDate
+    }
+
+    class BloodInventory {
+        -ArrayList~BloodUnit~ units
+        +getCompatibleUnits(BloodType type, MatchMode mode, LocalDate date) ArrayList~BloodUnit~
+        +getStockCounts(LocalDate date) HashMap
+    }
+
+    class MatchingService {
+        -BloodInventory inventory
+        -MatchMode matchMode
+        +findNextPending(List~BloodRequest~ requests) BloodRequest
+        +findNextFulfillable(List~BloodRequest~ requests, LocalDate date) BloodRequest
+        +match(BloodRequest request, LocalDate date, int count) ArrayList~BloodUnit~
+    }
+
+    class MatchMode {
+        <<enumeration>>
+        EXACT
+        COMPATIBLE
+    }
+
+    class LifeFlowStore {
+        <<interface>>
+        +load() LifeFlowState
+        +save(LifeFlowState state)
+        +getStorageInfo() StorageInfo
+        +close()
+    }
+
+    class JsonLifeFlowStore {
+        -Path dataFile
+        -Path backupFile
+        -FileLock lock
+        +load() LifeFlowState
+        +save(LifeFlowState state)
+        +restoreLatestBackup() LifeFlowState
+        +close()
+    }
+
+    class LifeFlowController {
+        -LifeFlowState state
+        -LifeFlowStore store
+        -DonationPolicy donationPolicy
+        +addDonor(...)
+        +addBloodUnit(...)
+        +addRequest(...)
+        +processNextRequest(LocalDate date) MatchResult
+        +processSpecificRequest(String id, LocalDate date, MatchMode mode) MatchResult
+        +bookDonationAppointment(...) DonationAppointment
+        +completeDonationAppointment(...)
+        +getStateSnapshot() LifeFlowState
+    }
+
+    Identifiable <|.. Donor
+    Identifiable <|.. DonorAccount
+    Identifiable <|.. Hospital
+    Identifiable <|.. BloodUnit
+    Identifiable <|.. DonationAppointment
+    Identifiable <|.. BloodRequest
+
+    BloodRequest <|-- RegularRequest
+    BloodRequest <|-- EmergencyRequest
+
+    Repository~T~ o-- Identifiable : stores T
+
+    LifeFlowState "1" *-- "0..*" Donor : donors
+    LifeFlowState "1" *-- "0..*" BloodUnit : units
+    LifeFlowState "1" *-- "0..*" BloodRequest : requests
+    LifeFlowState "1" *-- "0..*" FulfilmentRecord : fulfilments
+    LifeFlowState "1" *-- "0..*" DonationAppointment : appointments
+
+    BloodUnit ..> Donor : donorId
+    DonorAccount ..> Donor : donorId
+    BloodRequest ..> Hospital : hospitalId
+    DonationAppointment ..> Donor : donorId
+    DonationAppointment ..> Hospital : hospitalId
+    DonationAppointment ..> BloodRequest : linkedRequestId
+    FulfilmentRecord ..> BloodRequest : requestId
+    FulfilmentRecord ..> BloodUnit : unitIds
+
+    DonationPolicy --> Donor : evaluates
+    DonationPolicy --> EligibilityResult : returns
+    BloodInventory o-- BloodUnit : indexes
+    MatchingService --> BloodInventory : selects from
+    MatchingService --> MatchMode : applies
+    MatchingService --> BloodRequest : prioritises
+
+    LifeFlowStore <|.. JsonLifeFlowStore
+    JsonLifeFlowStore --> LifeFlowState : serialises
+    LifeFlowController --> LifeFlowState : owns snapshot
+    LifeFlowController --> LifeFlowStore : persists through
+    LifeFlowController --> DonationPolicy : applies
+    LifeFlowController ..> BloodInventory : builds
+    LifeFlowController ..> MatchingService : coordinates
