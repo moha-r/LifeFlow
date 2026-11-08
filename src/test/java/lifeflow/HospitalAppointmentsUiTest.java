@@ -4,7 +4,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
+import java.awt.GraphicsEnvironment;
 import java.nio.file.Files;
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -28,10 +30,17 @@ import lifeflow.persistence.JsonHospitalStore;
 import lifeflow.persistence.JsonLifeFlowStore;
 import lifeflow.service.HospitalRegistry;
 import lifeflow.ui.HospitalPortalFrame;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 final class HospitalAppointmentsUiTest {
     private static final LocalDate TODAY = LocalDate.now();
+
+    @BeforeAll
+    static void requiresDisplay() {
+        assumeFalse(GraphicsEnvironment.isHeadless(),
+                "Requires a graphical environment");
+    }
 
     @Test
     void hospitalPortalUsesBoundedTaskFirstLayout() throws Exception {

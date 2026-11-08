@@ -5,7 +5,9 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
+import java.awt.GraphicsEnvironment;
 import java.nio.file.Files;
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -33,10 +35,17 @@ import lifeflow.persistence.JsonLifeFlowStore;
 import lifeflow.service.DonorRegistry;
 import lifeflow.service.HospitalRegistry;
 import lifeflow.ui.DonorPortalFrame;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 final class DonorPortalUiTest {
     private static final LocalDate TODAY = LocalDate.now();
+
+    @BeforeAll
+    static void requiresDisplay() {
+        assumeFalse(GraphicsEnvironment.isHeadless(),
+                "Requires a graphical environment");
+    }
 
     @Test
     void portalUsesBoundedScrollableActionFirstLayout() throws Exception {
